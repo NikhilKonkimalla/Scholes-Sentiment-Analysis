@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 body {
-  @apply bg-black text-zinc-100 antialiased;
+  @apply bg-surface-dark text-zinc-100 antialiased font-sans;
 }
 
 /* Smooth scroll */
