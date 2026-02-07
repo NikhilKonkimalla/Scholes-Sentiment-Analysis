@@ -120,6 +120,8 @@ def main() -> int:
     print("\n--- Top 15 opportunities by |opportunity_score| ---")
     print(top[cols_show].to_string(index=False))
 
+    print(scored_df)
+
     return 0
 
 

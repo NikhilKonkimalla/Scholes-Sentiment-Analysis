@@ -36,11 +36,11 @@ def bs_price(
 
 def _self_test() -> None:
     """Assert known approximate Black-Scholes values."""
-    # Example: S=100, K=100, T=1, r=0.05, sigma=0.2 -> call ~10.45, put ~1.12
+    # Example: S=100, K=100, T=1, r=0.05, sigma=0.2 -> call ~10.45, put ~5.57
     c = bs_price(100.0, 100.0, 1.0, 0.05, 0.2, "call")
     p = bs_price(100.0, 100.0, 1.0, 0.05, 0.2, "put")
     assert 10.0 <= c <= 11.0, f"call price {c} out of expected range"
-    assert 1.0 <= p <= 1.5, f"put price {p} out of expected range"
+    assert 5.5 <= p <= 6.0, f"put price {p} out of expected range"
     # Edge cases return NaN
     assert math.isnan(bs_price(100, 100, 0, 0.05, 0.2, "call"))
     assert math.isnan(bs_price(100, 100, 1, 0.05, 0, "call"))
