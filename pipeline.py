@@ -44,6 +44,8 @@ def main() -> int:
                         help="News source: newsapi (requires NEWS_API_KEY) or yahoo (ticker-based)")
     parser.add_argument("--news_query", type=str, default="SPY OR S&P 500", help="NewsAPI search query (used only if --news_source=newsapi)")
     parser.add_argument("--headlines", type=int, default=100, help="Number of headlines to fetch (NewsAPI.ai: up to 100 per search)")
+    parser.add_argument("--headlines_csv", type=str, default="",
+                        help="Load headlines from CSV file instead of fetching (e.g. newsapi_headlines_dummy.csv)")
     parser.add_argument("--no-cache", action="store_true", help="Force NewsAPI fetch (ignore local CSV cache)")
     parser.add_argument("--cache-hours", type=float, default=24.0, help="NewsAPI cache validity in hours (default: 24)")
     parser.add_argument("--model", type=str, default="auto", choices=["auto", "vader"], help="Sentiment model")
@@ -69,19 +71,38 @@ def main() -> int:
         logger.exception("Market data failed: %s", e)
         return 1
 
-    # 2) Headlines + sentiment (NewsAPI or Yahoo Finance)
+    # 2) Headlines + sentiment (NewsAPI, Yahoo Finance, or CSV file)
     api_key = os.environ.get("NEWS_API_KEY", "").strip()
-    headlines = fetch_headlines(
-        args.news_source,
-        query=args.news_query,
-        api_key=api_key,
-        ticker=ticker,
-        n=args.headlines,
-        use_cache=not args.no_cache,
-        cache_max_age_hours=args.cache_hours,
-    )
+    if args.headlines_csv.strip():
+        import csv
+        csv_path = args.headlines_csv.strip()
+        headlines = []
+        try:
+            with open(csv_path, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    headlines.append({
+                        "title": row.get("title", ""),
+                        "source": row.get("source", ""),
+                        "publishedAt": row.get("publishedAt", ""),
+                        "url": row.get("url", ""),
+                    })
+            logger.info("Loaded %d headlines from %s", len(headlines), csv_path)
+        except Exception as e:
+            logger.exception("Failed to load headlines from CSV: %s", e)
+            return 1
+    else:
+        headlines = fetch_headlines(
+            args.news_source,
+            query=args.news_query,
+            api_key=api_key,
+            ticker=ticker,
+            n=args.headlines,
+            use_cache=not args.no_cache,
+            cache_max_age_hours=args.cache_hours,
+        )
     sentiment_result = score_headlines(headlines, model_preference=args.model)
-    sentiment_result["news_source"] = args.news_source
+    sentiment_result["news_source"] = "csv" if args.headlines_csv.strip() else args.news_source
     sentiment_mean = sentiment_result.get("sentiment_mean", 0.0)
     if "warning" in sentiment_result:
         logger.warning("Sentiment: %s", sentiment_result["warning"])
@@ -100,6 +121,19 @@ def main() -> int:
         out_df["expiration"] = out_df["expiration"].astype(str)
     out_df.to_csv(csv_path, index=False)
     logger.info("Wrote %s", csv_path)
+
+    # 5) Simplified CSV: optiontype, price, strike, score (top 100 by |opportunity_score|)
+    if "opportunity_score" in scored_df.columns:
+        simple = (
+            scored_df.assign(_abs=np.abs(scored_df["opportunity_score"]))
+            .nlargest(100, "_abs")
+            .drop(columns=["_abs"], errors="ignore")
+        )
+        simple_csv = simple[["option_type", "mid_price", "strike", "opportunity_score"]].copy()
+        simple_csv.columns = ["optiontype", "price", "strike", "score"]
+        simple_path = f"output_{ticker}_simple.csv"
+        simple_csv.to_csv(simple_path, index=False)
+        logger.info("Wrote %s", simple_path)
 
     # JSON sentiment
     json_path = f"sentiment_{ticker}.json"
