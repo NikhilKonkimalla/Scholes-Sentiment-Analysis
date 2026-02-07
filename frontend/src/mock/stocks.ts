@@ -11,6 +11,14 @@ export interface PricePoint {
   price: number;
 }
 
+export interface OHLCPoint {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
 export interface StockOption {
   type: 'call' | 'put';
   strike: number;
@@ -81,6 +89,31 @@ export function generateMockPrices(_ticker: string, basePrice: number): PricePoi
       date: d.toISOString().slice(0, 10),
       price: Math.round((prev + variation) * 100) / 100,
     });
+  }
+  return points;
+}
+
+// Generate 30 days of mock OHLC for candlestick charts
+export function generateMockOHLC(_ticker: string, basePrice: number): OHLCPoint[] {
+  const points: OHLCPoint[] = [];
+  const now = new Date();
+  let open = basePrice;
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const volatility = basePrice * 0.015;
+    const change = (Math.random() - 0.5) * 2 * volatility;
+    const close = Math.round((open + change) * 100) / 100;
+    const high = Math.round((Math.max(open, close) + Math.random() * volatility * 0.5) * 100) / 100;
+    const low = Math.round((Math.min(open, close) - Math.random() * volatility * 0.5) * 100) / 100;
+    points.push({
+      date: d.toISOString().slice(0, 10),
+      open,
+      high: Math.max(high, open, close),
+      low: Math.min(low, open, close),
+      close,
+    });
+    open = close;
   }
   return points;
 }

@@ -9,9 +9,9 @@
  */
 
 import type { Sector } from '../mock/sectors';
-import type { Stock, PricePoint, StockOption } from '../mock/stocks';
+import type { Stock, PricePoint, StockOption, OHLCPoint } from '../mock/stocks';
 import { MOCK_SECTORS } from '../mock/sectors';
-import { MOCK_STOCKS_BY_SECTOR, getStockByTicker, generateMockPrices, getOptionsForTicker } from '../mock/stocks';
+import { MOCK_STOCKS_BY_SECTOR, getStockByTicker, generateMockPrices, generateMockOHLC, getOptionsForTicker } from '../mock/stocks';
 
 const MOCK_DELAY_MS = 400;
 
@@ -35,6 +35,13 @@ export async function fetchStockPrices(ticker: string, _range: string = '1m'): P
   const stock = getStockByTicker(ticker);
   const base = stock?.currentPrice ?? 100;
   return Promise.resolve(generateMockPrices(ticker, base));
+}
+
+export async function fetchStockOHLC(ticker: string, _range: string = '1m'): Promise<OHLCPoint[]> {
+  await delay();
+  const stock = getStockByTicker(ticker);
+  const base = stock?.currentPrice ?? 100;
+  return Promise.resolve(generateMockOHLC(ticker, base));
 }
 
 export async function fetchStockAiSummary(ticker: string): Promise<string> {
