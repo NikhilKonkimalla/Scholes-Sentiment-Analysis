@@ -1,0 +1,11 @@
+"""
+Vercel entrypoint at api/server.py. Exposes the Flask app from api_server.
+"""
+import sys
+from pathlib import Path
+
+_root = Path(__file__).resolve().parent.parent
+if str(_root) not in sys.path:
+    sys.path.insert(0, str(_root))
+
+from api_server import app

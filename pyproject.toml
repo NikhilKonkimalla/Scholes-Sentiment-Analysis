@@ -1,0 +1,14 @@
+[project]
+name = "scholes-sentiment-analysis"
+version = "0.1.0"
+description = "Flask API for options and market data"
+requires-python = ">=3.10"
+dependencies = [
+    "flask>=3.0.0",
+    "flask-cors>=4.0.0",
+    "pandas>=2.0.0",
+    "yfinance>=0.2.36",
+]
+
+[project.scripts]
+app = "api_server:app"
