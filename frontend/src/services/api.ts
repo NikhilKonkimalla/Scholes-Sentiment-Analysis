@@ -6,8 +6,10 @@
 
 import type { Sector } from '../mock/sectors';
 import type { Stock, PricePoint, StockOption, OHLCPoint } from '../mock/stocks';
+import type { AiEvaluation } from '../mock/aiEvaluations';
 import { MOCK_SECTORS } from '../mock/sectors';
 import { MOCK_STOCKS_BY_SECTOR, getStockByTicker, generateMockPrices, generateMockOHLC, getOptionsForTicker } from '../mock/stocks';
+import { getAiEvaluation } from '../mock/aiEvaluations';
 
 const API_BASE =
   (typeof import.meta !== 'undefined' && (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL) ||
@@ -77,10 +79,10 @@ export async function fetchStockOHLC(ticker: string, _range: string = '1m'): Pro
   return Promise.resolve(generateMockOHLC(ticker, base));
 }
 
-export async function fetchStockAiSummary(ticker: string): Promise<string> {
+/** Per-ticker AI evaluation (summary + related articles). Mock for now; replace with GET /api/stocks/:ticker/ai-summary when available. */
+export async function fetchStockAiEvaluation(ticker: string): Promise<AiEvaluation> {
   await delay();
-  const mockSummary = `Based on recent volatility, earnings sentiment, and options flow, ${ticker} shows moderate bullish bias over the next 30 days. Implied volatility is near the 20-day average. Key levels: support near the recent low, resistance at the prior high. Risk/reward favors selective call spreads over naked calls.`;
-  return Promise.resolve(mockSummary);
+  return Promise.resolve(getAiEvaluation(ticker));
 }
 
 export async function fetchStockOptions(ticker: string): Promise<StockOption[]> {

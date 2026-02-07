@@ -19,12 +19,13 @@ import {
   fetchStock,
   fetchStockPrices,
   fetchStockOHLC,
-  fetchStockAiSummary,
+  fetchStockAiEvaluation,
   fetchStockOptions,
   checkBackendHealth,
 } from '../services/api';
 import { MOCK_SECTORS } from '../mock/sectors';
 import type { Stock, PricePoint, StockOption, OHLCPoint } from '../mock/stocks';
+import type { AiEvaluation } from '../mock/aiEvaluations';
 
 export function StockDetail() {
   const { ticker } = useParams<{ ticker: string }>();
@@ -32,7 +33,7 @@ export function StockDetail() {
   const [stock, setStock] = useState<Stock | null | undefined>(undefined);
   const [prices, setPrices] = useState<PricePoint[] | null>(null);
   const [ohlc, setOhlc] = useState<OHLCPoint[] | null>(null);
-  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiEvaluation, setAiEvaluation] = useState<AiEvaluation | null>(null);
   const [options, setOptions] = useState<StockOption[] | null>(null);
   const [backendAvailable, setBackendAvailable] = useState<boolean | null>(null);
   const [chartFormat, setChartFormat] = useState<'line' | 'candlestick'>('line');
@@ -46,7 +47,7 @@ export function StockDetail() {
       fetchStock(ticker).then(setStock),
       fetchStockPrices(ticker).then(setPrices),
       fetchStockOHLC(ticker).then(setOhlc),
-      fetchStockAiSummary(ticker).then(setAiSummary),
+      fetchStockAiEvaluation(ticker).then(setAiEvaluation),
       fetchStockOptions(ticker).then(setOptions),
     ]);
   }, [ticker]);
@@ -99,7 +100,7 @@ export function StockDetail() {
   }, [chartFormat, ohlc]);
 
   const sector = stock ? MOCK_SECTORS.find((s) => s.id === stock.sectorId) : null;
-  const loading = stock === undefined || prices === null || aiSummary === null || options === null;
+  const loading = stock === undefined || prices === null || aiEvaluation === null || options === null;
 
   if (!ticker) {
     return (
@@ -226,9 +227,30 @@ export function StockDetail() {
           </Card>
 
           <Card title="AI Evaluation">
-            <div className="flex items-start gap-2">
-              <Badge variant="neutral" className="shrink-0">Generated</Badge>
-              <p className="text-sm text-zinc-300 leading-relaxed">{aiSummary}</p>
+            <div className="space-y-3">
+              <div className="flex items-start gap-2">
+                <Badge variant="neutral" className="shrink-0">Generated</Badge>
+                <p className="text-sm text-zinc-300 leading-relaxed">{aiEvaluation.summary}</p>
+              </div>
+              {aiEvaluation.articles?.length ? (
+                <div className="border-t border-zinc-800 pt-3">
+                  <p className="text-xs font-medium text-zinc-400 mb-2">Related articles</p>
+                  <ul className="space-y-1.5">
+                    {aiEvaluation.articles.map((a, i) => (
+                      <li key={i}>
+                        <a
+                          href={a.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-emerald-400 hover:text-emerald-300 hover:underline"
+                        >
+                          {a.title}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
           </Card>
         </div>
@@ -282,7 +304,7 @@ export function StockDetail() {
                     <td className="px-4 py-3 text-zinc-300">${opt.strike.toFixed(2)}</td>
                     <td className="px-4 py-3 text-zinc-300">${opt.optionPrice.toFixed(2)}</td>
                     <td className="px-4 py-3">
-                      <Badge variant={opt.confidence >= 60 ? 'green' : opt.confidence >= 40 ? 'neutral' : 'red'}>
+                      <Badge variant={opt.confidence >= 60 ? 'green' : opt.confidence >= 40 ? 'yellow' : 'red'}>
                         {opt.confidence}
                       </Badge>
                     </td>
