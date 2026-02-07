@@ -54,6 +54,28 @@ python pipeline.py --ticker SPY --news_source newsapi --news_query "SPY OR S&P 5
 - `--headlines`: Number of headlines to fetch (default: 20).
 - `--model`: Sentiment model: `auto` (FinBERT with VADER fallback) or `vader`.
 
+## Frontend and options from CSV
+
+The frontend can show **options with confidence/suggestions** from a pre-built multi-ticker CSV (`output_multi_ticker.csv`, e.g. from `pipeline_multi_ticker.py`).
+
+1. **Generate the CSV** (if needed):
+   ```bash
+   python pipeline_multi_ticker.py --headlines_csv newsapi_headlines_500.csv --output output_multi_ticker.csv
+   ```
+
+2. **Start the API server** (reads `output_multi_ticker.csv` from the project root):
+   ```bash
+   pip install flask flask-cors
+   python api_server.py
+   ```
+   Server runs at http://localhost:5000.
+
+3. **Start the frontend**:
+   ```bash
+   cd frontend && npm install && npm run dev
+   ```
+   Open http://localhost:5173 → Sectors → pick a stock. Options for that ticker are loaded from the CSV; **confidence** is derived from the score column. If the API server is not running, the frontend falls back to mock options.
+
 ## Outputs
 
 - **CSV**: `output_{ticker}.csv` — full options chain with theoretical price, pricing gap, liquidity, spread penalty, alignment, opportunity score, and risk flag.
