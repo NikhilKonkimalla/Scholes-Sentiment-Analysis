@@ -12,6 +12,7 @@ import numpy as np
 
 from market_data import get_spot, get_options_chain
 from news_sentiment import score_headlines
+from rss_sentiment import get_ticker_sentiment, get_rolling_sentiment
 from scoring import compute_scores
 
 logging.basicConfig(
@@ -40,6 +41,9 @@ def main() -> int:
     parser.add_argument("--r", type=float, default=0.045, help="Risk-free rate")
     parser.add_argument("--expirations", type=int, default=3, help="Max option expirations per ticker")
     parser.add_argument("--top_per_ticker", type=int, default=50, help="Top N options per ticker by |score|")
+    parser.add_argument("--rss-weight", type=float, default=0.25, help="Weight for RSS/social sentiment (0-1); rest is news (default 0.25)")
+    parser.add_argument("--rss-hours", type=int, default=24, help="RSS sentiment rolling window in hours (default 24)")
+    parser.add_argument("--no-rss", action="store_true", help="Disable RSS/social sentiment (use news only)")
     args = parser.parse_args()
 
     # Load headlines
@@ -64,10 +68,10 @@ def main() -> int:
 
     logger.info("Loaded %d headlines", len(headlines))
 
-    # Sentiment
+    # News sentiment from headlines
     sentiment_result = score_headlines(headlines, model_preference="auto")
-    sentiment_mean = sentiment_result.get("sentiment_mean", 0.0)
-    logger.info("Sentiment mean: %.4f", sentiment_mean)
+    news_sentiment = sentiment_result.get("sentiment_mean", 0.0)
+    logger.info("News sentiment mean: %.4f", news_sentiment)
 
     # Tickers
     tickers = [t.strip().upper() for t in args.tickers.split(",") if t.strip()] if args.tickers.strip() else DEFAULT_TICKERS
@@ -83,6 +87,13 @@ def main() -> int:
             if options_df is None or options_df.empty:
                 logger.warning("No options for %s, skipping", ticker)
                 continue
+            # Per-ticker blended sentiment: news + RSS/social (ticker-specific or overall)
+            sentiment_mean = news_sentiment
+            if not args.no_rss and args.rss_weight > 0:
+                rss_sent = get_ticker_sentiment(ticker, hours=args.rss_hours) or get_rolling_sentiment(args.rss_hours)
+                if rss_sent is not None:
+                    w = max(0.0, min(1.0, args.rss_weight))
+                    sentiment_mean = (1 - w) * news_sentiment + w * rss_sent
             scored_df = compute_scores(options_df, spot, args.r, sentiment_mean)
             if "opportunity_score" not in scored_df.columns:
                 continue
