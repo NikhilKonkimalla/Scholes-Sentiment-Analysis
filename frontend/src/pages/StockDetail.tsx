@@ -21,6 +21,7 @@ import {
   fetchStockOHLC,
   fetchStockAiSummary,
   fetchStockOptions,
+  checkBackendHealth,
 } from '../services/api';
 import { MOCK_SECTORS } from '../mock/sectors';
 import type { Stock, PricePoint, StockOption, OHLCPoint } from '../mock/stocks';
@@ -33,12 +34,14 @@ export function StockDetail() {
   const [ohlc, setOhlc] = useState<OHLCPoint[] | null>(null);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [options, setOptions] = useState<StockOption[] | null>(null);
+  const [backendAvailable, setBackendAvailable] = useState<boolean | null>(null);
   const [chartFormat, setChartFormat] = useState<'line' | 'candlestick'>('line');
   const candleContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
 
   useEffect(() => {
     if (!ticker) return;
+    checkBackendHealth().then(setBackendAvailable);
     Promise.all([
       fetchStock(ticker).then(setStock),
       fetchStockPrices(ticker).then(setPrices),
@@ -232,6 +235,13 @@ export function StockDetail() {
       )}
 
       <Card title="Options">
+        {backendAvailable === false && (
+          <div className="mb-3 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+            Using mock data. Start the API server for real confidence scores from{' '}
+            <code className="rounded bg-zinc-800 px-1">output_multi_ticker.csv</code>:{' '}
+            <code className="rounded bg-zinc-800 px-1">python api_server.py</code>
+          </div>
+        )}
         {options === null ? (
           <div className="overflow-auto max-h-64">
             <table className="w-full text-left text-sm">

@@ -1,11 +1,7 @@
 /**
- * API service. Currently returns mock data with simulated delay.
- * Replace fetch calls with real backend when ready:
- *   GET /api/sectors
- *   GET /api/sectors/:sectorId/stocks
- *   GET /api/stocks/:ticker/prices?range=1m
- *   GET /api/stocks/:ticker/ai-summary
- *   GET /api/stocks/:ticker/options
+ * API service. Options come from backend (output_multi_ticker.csv) when the API
+ * server is running; otherwise mock data is used. Sectors, stocks, prices, OHLC,
+ * and ai-summary remain mock for now.
  */
 
 import type { Sector } from '../mock/sectors';
@@ -13,10 +9,29 @@ import type { Stock, PricePoint, StockOption, OHLCPoint } from '../mock/stocks';
 import { MOCK_SECTORS } from '../mock/sectors';
 import { MOCK_STOCKS_BY_SECTOR, getStockByTicker, generateMockPrices, generateMockOHLC, getOptionsForTicker } from '../mock/stocks';
 
+const API_BASE =
+  (typeof import.meta !== 'undefined' && (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL) ||
+  'http://localhost:5000';
 const MOCK_DELAY_MS = 400;
 
 function delay(ms: number = MOCK_DELAY_MS): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+async function get<T>(path: string): Promise<T | null> {
+  try {
+    const res = await fetch(`${API_BASE}${path}`, { method: 'GET' });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+/** Call this to see if the options backend (api_server.py) is running. */
+export async function checkBackendHealth(): Promise<boolean> {
+  const data = await get<{ status?: string }>('/api/health');
+  return data != null && data.status === 'ok';
 }
 
 export async function fetchSectors(): Promise<Sector[]> {
@@ -51,6 +66,8 @@ export async function fetchStockAiSummary(ticker: string): Promise<string> {
 }
 
 export async function fetchStockOptions(ticker: string): Promise<StockOption[]> {
+  const data = await get<{ options: StockOption[] }>(`/api/stocks/${encodeURIComponent(ticker)}/options`);
+  if (data?.options?.length) return data.options;
   await delay();
   return Promise.resolve([...getOptionsForTicker(ticker)]);
 }
