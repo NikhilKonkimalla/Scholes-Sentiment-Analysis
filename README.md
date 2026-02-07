@@ -1,6 +1,6 @@
 # Scholes Analysis Pipeline
 
-Backend-only Python pipeline that combines live underlying + options data (yfinance), Black-Scholes theoretical pricing, news sentiment (NewsAPI + FinBERT / VADER), and an opportunity score blending mispricing and sentiment.
+Backend-only Python pipeline that combines live underlying + options data (yfinance), Black-Scholes theoretical pricing, news sentiment (NewsAPI.ai + FinBERT / VADER), and an opportunity score blending mispricing and sentiment.
 
 ## Setup
 
@@ -20,7 +20,7 @@ Backend-only Python pipeline that combines live underlying + options data (yfina
 3. **News** (choose one):
 
    - **Yahoo Finance** (default): No API key. Headlines are fetched by ticker via yfinance. Use `--news_source yahoo`.
-   - **NewsAPI**: Get a free key at [https://newsapi.org](https://newsapi.org) and set `NEWS_API_KEY`; use `--news_source newsapi` and optionally `--news_query "SPY OR S&P 500"`.
+   - **NewsAPI.ai**: Get a free key at [https://newsapi.ai](https://newsapi.ai) and set `NEWS_API_KEY`; use `--news_source newsapi` and optionally `--news_query "SPY OR S&P 500"`.
 
    ```bash
    export NEWS_API_KEY="your_api_key_here"   # only for --news_source newsapi
@@ -72,7 +72,7 @@ python pipeline.py --ticker SPY --news_source newsapi --news_query "SPY OR S&P 5
 
 ## Limitations
 
-- **Rate limits**: NewsAPI free tier has rate and date-range limits. Yahoo Finance (yfinance) is not an official API and can be throttled or change; ticker news may occasionally be generic.
+- **Rate limits**: NewsAPI.ai free tier has 2,000 credits. Yahoo Finance (yfinance) is not an official API and can be throttled or change; ticker news may occasionally be generic.
 - **Sentiment**: FinBERT requires `transformers` and `torch`; if unavailable or failing, the pipeline falls back to VADER without crashing.
 - **Data quality**: Options data (IV, volume, open interest) and news sentiment are used as-is; no guarantee of completeness or accuracy.
 - **No UI**: CLI and file outputs only; no dashboard or web interface.

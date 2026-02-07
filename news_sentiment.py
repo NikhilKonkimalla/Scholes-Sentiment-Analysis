@@ -4,6 +4,8 @@ News headlines fetch (NewsAPI and Yahoo Finance) and sentiment scoring (FinBERT 
 import logging
 from typing import Any
 
+from newsapi_client import fetch_headlines as fetch_headlines_newsapi
+
 logger = logging.getLogger(__name__)
 
 # FinBERT / VADER availability
@@ -47,45 +49,6 @@ def _get_vader() -> Any:
     except Exception as e:
         logger.warning("VADER unavailable: %s", e)
         return None
-
-
-def fetch_headlines_newsapi(query: str, api_key: str, n: int = 20) -> list[dict]:
-    """
-    Fetch recent headlines from NewsAPI.
-    Returns list of dicts: {"title", "source", "publishedAt", "url"}.
-    """
-    if not api_key or not api_key.strip():
-        logger.warning("No NewsAPI key provided")
-        return []
-    try:
-        from newsapi import NewsAPIClient
-        from datetime import datetime, timedelta, timezone
-        client = NewsAPIClient(api_key=api_key)
-        to_date = datetime.now(timezone.utc)
-        from_date = to_date - timedelta(days=7)
-        response = client.get_everything(
-            q=query,
-            from_param=from_date.isoformat(),
-            to=to_date.isoformat(),
-            language="en",
-            sort_by="publishedAt",
-            page_size=min(n, 100),
-        )
-        articles = getattr(response, "articles", []) or []
-        out = []
-        for a in articles:
-            if not a:
-                continue
-            out.append({
-                "title": a.get("title") or "",
-                "source": (a.get("source") or {}).get("name") or "",
-                "publishedAt": a.get("publishedAt") or "",
-                "url": a.get("url") or "",
-            })
-        return out[:n]
-    except Exception as e:
-        logger.exception("fetch_headlines_newsapi failed: %s", e)
-        return []
 
 
 def fetch_headlines_yahoo(ticker: str, n: int = 20) -> list[dict]:
@@ -142,17 +105,25 @@ def fetch_headlines(
     api_key: str = "",
     ticker: str = "",
     n: int = 20,
+    use_cache: bool = True,
+    cache_max_age_hours: float = 24.0,
 ) -> list[dict]:
     """
     Fetch headlines from the chosen source. Same return shape: {"title", "source", "publishedAt", "url"}.
 
-    - source "newsapi": uses query and api_key (NewsAPI).
+    - source "newsapi": uses query and api_key (NewsAPI). Caches to CSV and uses cache first to save API credits.
     - source "yahoo": uses ticker (Yahoo Finance via yfinance). query and api_key ignored.
     """
     if source == "yahoo":
         ticker_to_use = (ticker or "").strip().upper() or "SPY"
         return fetch_headlines_yahoo(ticker_to_use, n=n)
-    return fetch_headlines_newsapi(query or "SPY OR S&P 500", api_key, n=n)
+    return fetch_headlines_newsapi(
+        query or "SPY OR S&P 500",
+        api_key,
+        n=n,
+        use_cache=use_cache,
+        cache_max_age_hours=cache_max_age_hours,
+    )
 
 
 def _score_finbert(headlines: list[dict]) -> list[float]:

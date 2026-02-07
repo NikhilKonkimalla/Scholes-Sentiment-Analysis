@@ -43,7 +43,9 @@ def main() -> int:
     parser.add_argument("--news_source", type=str, default="yahoo", choices=["newsapi", "yahoo"],
                         help="News source: newsapi (requires NEWS_API_KEY) or yahoo (ticker-based)")
     parser.add_argument("--news_query", type=str, default="SPY OR S&P 500", help="NewsAPI search query (used only if --news_source=newsapi)")
-    parser.add_argument("--headlines", type=int, default=20, help="Number of headlines to fetch")
+    parser.add_argument("--headlines", type=int, default=100, help="Number of headlines to fetch (NewsAPI.ai: up to 100 per search)")
+    parser.add_argument("--no-cache", action="store_true", help="Force NewsAPI fetch (ignore local CSV cache)")
+    parser.add_argument("--cache-hours", type=float, default=24.0, help="NewsAPI cache validity in hours (default: 24)")
     parser.add_argument("--model", type=str, default="auto", choices=["auto", "vader"], help="Sentiment model")
     args = parser.parse_args()
 
@@ -75,6 +77,8 @@ def main() -> int:
         api_key=api_key,
         ticker=ticker,
         n=args.headlines,
+        use_cache=not args.no_cache,
+        cache_max_age_hours=args.cache_hours,
     )
     sentiment_result = score_headlines(headlines, model_preference=args.model)
     sentiment_result["news_source"] = args.news_source
