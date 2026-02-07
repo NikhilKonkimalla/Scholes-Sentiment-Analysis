@@ -274,7 +274,7 @@ export function StockDetail() {
                   <th className="px-3 py-3">Bid</th>
                   <th className="px-3 py-3">Mid</th>
                   <th className="px-3 py-3">Recommendation</th>
-                  <th className="px-3 py-3">IV</th>
+                  <th className="px-3 py-3">Volatility</th>
                 </tr>
               </thead>
               <tbody>
@@ -297,7 +297,7 @@ export function StockDetail() {
                   <th className="px-3 py-3">Bid</th>
                   <th className="px-3 py-3">Mid</th>
                   <th className="px-3 py-3">Recommendation</th>
-                  <th className="px-3 py-3">IV</th>
+                  <th className="px-3 py-3">Volatility</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800">

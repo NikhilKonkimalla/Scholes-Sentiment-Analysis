@@ -93,6 +93,44 @@ export const EXTRA_TICKERS_ORDER: string[] = [
   'NKE', 'SBUX', 'MCD', 'GE', 'HON', 'UPS', 'FCX', 'AA', 'DUK', 'COP', 'SLB',
 ];
 
+/** Full company names for tickers (used when API returns ticker as name). */
+export const TICKER_FULL_NAMES: Record<string, string> = {
+  AAPL: 'Apple Inc.',
+  SPY: 'SPDR S&P 500 ETF',
+  NVDA: 'NVIDIA Corp.',
+  TSLA: 'Tesla Inc.',
+  AMD: 'Advanced Micro Devices',
+  INTC: 'Intel Corp.',
+  QCOM: 'Qualcomm Inc.',
+  ORCL: 'Oracle Corp.',
+  ADBE: 'Adobe Inc.',
+  ABBV: 'AbbVie Inc.',
+  GILD: 'Gilead Sciences',
+  AMGN: 'Amgen Inc.',
+  GS: 'Goldman Sachs Group',
+  MS: 'Morgan Stanley',
+  AXP: 'American Express',
+  NKE: 'Nike Inc.',
+  SBUX: 'Starbucks Corp.',
+  MCD: "McDonald's Corp.",
+  GE: 'GE Aerospace',
+  HON: 'Honeywell International',
+  UPS: 'United Parcel Service',
+  FCX: 'Freeport-McMoRan Inc.',
+  AA: 'Alcoa Corp.',
+  DUK: 'Duke Energy',
+  COP: 'ConocoPhillips',
+  SLB: 'SLB (Schlumberger)',
+};
+
+/** Display name for a ticker: from mock stock, then TICKER_FULL_NAMES, else ticker. */
+export function getTickerFullName(ticker: string): string {
+  const upper = ticker.toUpperCase();
+  const mock = getStockByTicker(ticker);
+  if (mock?.name && mock.name !== upper && mock.name !== ticker) return mock.name;
+  return TICKER_FULL_NAMES[upper] ?? ticker;
+}
+
 // Flatten for lookup by ticker
 export function getStockByTicker(ticker: string): Stock | undefined {
   const upper = ticker.toUpperCase();

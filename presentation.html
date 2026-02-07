@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scholes Sentiment Analysis — Presentation</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; }
+    body { background: #0f172a; color: #e2e8f0; }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 3rem 4rem;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.35s ease, visibility 0.35s ease;
+    }
+    .slide.active { opacity: 1; visibility: visible; }
+
+    .slide h1 { font-size: clamp(1.75rem, 4vw, 2.5rem); margin: 0 0 1rem; color: #f8fafc; font-weight: 700; }
+    .slide h2 { font-size: clamp(1.25rem, 3vw, 1.75rem); margin: 0 0 1.5rem; color: #94a3b8; font-weight: 600; }
+    .slide p, .slide li { font-size: clamp(0.95rem, 2vw, 1.1rem); line-height: 1.6; color: #cbd5e1; max-width: 52rem; }
+    .slide ul { text-align: left; margin: 0; padding-left: 1.5rem; }
+    .slide li { margin-bottom: 0.5rem; }
+
+    .title-slide { text-align: center; }
+    .title-slide .sub { font-size: 1.1rem; color: #64748b; margin-top: 0.5rem; }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start; width: 100%; max-width: 56rem; text-align: left; }
+    @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.25rem 1.5rem; }
+    .card h3 { margin: 0 0 0.5rem; font-size: 1rem; color: #38bdf8; }
+
+    .nav {
+      position: fixed;
+      bottom: 1.5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      z-index: 10;
+    }
+    .nav button {
+      background: #334155;
+      color: #e2e8f0;
+      border: none;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .nav button:hover { background: #475569; }
+    .nav .dots { display: flex; gap: 0.5rem; }
+    .nav .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #475569;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .nav .dot.active { background: #10b981; }
+    .counter { color: #64748b; font-size: 0.9rem; min-width: 4ch; text-align: center; }
+  </style>
+</head>
+<body>
+  <section class="slide title-slide active" data-slide="1">
+    <h1>Scholes Sentiment Analysis</h1>
+    <p class="sub">Options pricing, news sentiment & opportunity scoring</p>
+  </section>
+
+  <section class="slide" data-slide="2">
+    <h2>What it does</h2>
+    <p>Pipeline that combines <strong>live market data</strong>, <strong>Black–Scholes</strong> theoretical pricing, <strong>news sentiment</strong> (FinBERT / VADER), and an <strong>opportunity score</strong> blending mispricing and sentiment to surface options ideas.</p>
+    <ul>
+      <li>Underlying + options chain via yfinance</li>
+      <li>News from Yahoo Finance or NewsAPI.ai</li>
+      <li>Sentiment per headline → alignment with option direction</li>
+      <li>Score: theoretical gap, liquidity, spread, sentiment alignment</li>
+    </ul>
+  </section>
+
+  <section class="slide" data-slide="3">
+    <h2>Key components</h2>
+    <div class="two-col">
+      <div class="card">
+        <h3>pipeline.py</h3>
+        <p>CLI: orchestration, CSV/JSON output, top opportunities.</p>
+      </div>
+      <div class="card">
+        <h3>market_data.py</h3>
+        <p>Spot price and options chain (yfinance).</p>
+      </div>
+      <div class="card">
+        <h3>bs.py</h3>
+        <p>Black–Scholes pricing and self-test.</p>
+      </div>
+      <div class="card">
+        <h3>news_sentiment.py</h3>
+        <p>Headlines (Yahoo/NewsAPI), FinBERT/VADER scoring.</p>
+      </div>
+      <div class="card">
+        <h3>scoring.py</h3>
+        <p>Opportunity score: theo, gap, liquidity, spread, alignment, risk.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" data-slide="4">
+    <h2>Frontend & options</h2>
+    <p>Web app shows <strong>sectors</strong>, <strong>stocks</strong>, and <strong>options</strong> with confidence/suggestions from <code>output_multi_ticker.csv</code>.</p>
+    <ul>
+      <li>API server: <code>python api_server.py</code> (Flask, port 5000)</li>
+      <li>Frontend: <code>cd frontend && npm run dev</code> (Vite, port 5173)</li>
+      <li>Options table: Ticker, Type, Expiration, Strike, Price, Bid, Mid, Recommendation, Volatility</li>
+      <li>Confidence from pipeline score; mock data when API is offline</li>
+    </ul>
+  </section>
+
+  <section class="slide" data-slide="5">
+    <h2>How to run</h2>
+    <ul>
+      <li><strong>Pipeline (default SPY):</strong> <code>python pipeline.py</code></li>
+      <li><strong>With options:</strong> <code>python pipeline.py --ticker SPY --expirations 6 --headlines 20 --model auto</code></li>
+      <li><strong>Multi-ticker CSV:</strong> <code>python pipeline_multi_ticker.py --headlines_csv newsapi_headlines_500.csv --output output_multi_ticker.csv</code></li>
+      <li>News: Yahoo (no key) or NewsAPI.ai (<code>NEWS_API_KEY</code> + <code>--news_source newsapi</code>)</li>
+    </ul>
+  </section>
+
+  <section class="slide" data-slide="6">
+    <h2>Outputs</h2>
+    <ul>
+      <li><strong>CSV</strong> — <code>output_{ticker}.csv</code>: full chain, theoretical price, gap, liquidity, spread penalty, alignment, opportunity score, risk flag</li>
+      <li><strong>JSON</strong> — <code>sentiment_{ticker}.json</code>: sentiment summary, per-headline scores, top positive/negative headlines</li>
+      <li><strong>Console</strong> — Top 15 opportunities by absolute opportunity score</li>
+    </ul>
+  </section>
+
+  <section class="slide title-slide" data-slide="7">
+    <h1>Thank you</h1>
+    <p class="sub">Questions?</p>
+  </section>
+
+  <nav class="nav" aria-label="Slide navigation">
+    <button type="button" id="prev" aria-label="Previous">←</button>
+    <div class="dots" id="dots"></div>
+    <span class="counter" id="counter">1 / 7</span>
+    <button type="button" id="next" aria-label="Next">→</button>
+  </nav>
+
+  <script>
+    const slides = document.querySelectorAll('.slide');
+    const total = slides.length;
+    let current = 0;
+
+    function go(n) {
+      slides[current].classList.remove('active');
+      current = (n + total) % total;
+      slides[current].classList.add('active');
+      updateUI();
+    }
+
+    function updateUI() {
+      document.getElementById('counter').textContent = `${current + 1} / ${total}`;
+      document.querySelectorAll('.nav .dot').forEach((d, i) => d.classList.toggle('active', i === current));
+    }
+
+    document.getElementById('prev').addEventListener('click', () => go(current - 1));
+    document.getElementById('next').addEventListener('click', () => go(current + 1));
+
+    document.querySelectorAll('.nav .dot').forEach((dot, i) => {
+      dot.addEventListener('click', () => go(i));
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') go(current - 1);
+      if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); go(current + 1); }
+    });
+
+    // Build dots
+    const dotsEl = document.getElementById('dots');
+    for (let i = 0; i < total; i++) {
+      const d = document.createElement('button');
+      d.type = 'button';
+      d.className = 'dot' + (i === 0 ? ' active' : '');
+      d.setAttribute('aria-label', `Slide ${i + 1}`);
+      d.addEventListener('click', () => go(i));
+      dotsEl.appendChild(d);
+    }
+
+    updateUI();
+  </script>
+</body>
+</html>

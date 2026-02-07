@@ -8,7 +8,7 @@ import type { Sector } from '../mock/sectors';
 import type { Stock, PricePoint, StockOption, OHLCPoint } from '../mock/stocks';
 import type { AiEvaluation } from '../mock/aiEvaluations';
 import { MOCK_SECTORS } from '../mock/sectors';
-import { MOCK_STOCKS_BY_SECTOR, getStockByTicker, generateMockPrices, generateMockOHLC, getOptionsForTicker, EXTRA_TICKERS_CAP, EXTRA_TICKER_SECTORS, EXTRA_TICKERS_ORDER } from '../mock/stocks';
+import { MOCK_STOCKS_BY_SECTOR, getStockByTicker, getTickerFullName, generateMockPrices, generateMockOHLC, getOptionsForTicker, EXTRA_TICKERS_CAP, EXTRA_TICKER_SECTORS, EXTRA_TICKERS_ORDER } from '../mock/stocks';
 import { getAiEvaluation } from '../mock/aiEvaluations';
 
 const API_BASE =
@@ -77,7 +77,7 @@ export async function fetchSectorStocks(
     for (const t of forSector) {
       stocks.push({
         ticker: t.toUpperCase(),
-        name: t,
+        name: getTickerFullName(t),
         sectorId,
         currentPrice: 0,
         dayChangePercent: 0,
