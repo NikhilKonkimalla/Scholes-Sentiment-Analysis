@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Breadcrumb } from '../components/Breadcrumb';
 import { TableRowSkeleton } from '../components/Skeleton';
-import { fetchSectorStocks } from '../services/api';
+import { fetchSectorStocks, fetchTickersWithData } from '../services/api';
 import { MOCK_SECTORS } from '../mock/sectors';
 import type { Stock } from '../mock/stocks';
 
@@ -17,7 +17,9 @@ export function SectorDetail() {
 
   useEffect(() => {
     if (!sectorId) return;
-    fetchSectorStocks(sectorId).then(setStocks);
+    fetchTickersWithData().then((tickers) => {
+      fetchSectorStocks(sectorId, tickers).then(setStocks);
+    });
   }, [sectorId]);
 
   if (!sectorId || !sector) {
