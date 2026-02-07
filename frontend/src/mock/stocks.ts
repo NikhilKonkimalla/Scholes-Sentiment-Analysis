@@ -20,10 +20,20 @@ export interface OHLCPoint {
 }
 
 export interface StockOption {
+  ticker: string;
   type: 'call' | 'put';
+  expiration: string;
+  contractSymbol: string;
   strike: number;
-  optionPrice: number;
-  confidence: number; // 0-100
+  price: number;
+  bid: number;
+  midPrice: number;
+  score: number;
+  impliedVolatility: number;
+  /** @deprecated Use midPrice. Kept for backward compat. */
+  optionPrice?: number;
+  /** 0-100, derived from score. Kept for backward compat. */
+  confidence?: number;
 }
 
 // Stocks per sector (sectorId -> stocks)
@@ -119,23 +129,42 @@ export function generateMockOHLC(_ticker: string, basePrice: number): OHLCPoint[
 }
 
 // Mock options per stock
+function mockOpt(t: string, type: 'call' | 'put', strike: number, price: number, bid: number, midPrice: number, score: number, iv: number, exp = '2026-03-21T21:00:00+00:00'): StockOption {
+  const sym = type === 'call' ? `${t}260321C${String(strike * 1000).padStart(8, '0')}` : `${t}260321P${String(strike * 1000).padStart(8, '0')}`;
+  const conf = Math.round(Math.max(0, Math.min(100, 50 + score / 2)));
+  return {
+    ticker: t,
+    type,
+    expiration: exp,
+    contractSymbol: sym,
+    strike,
+    price,
+    bid,
+    midPrice,
+    score,
+    impliedVolatility: iv,
+    optionPrice: midPrice,
+    confidence: conf,
+  };
+}
+
 export const MOCK_STOCK_OPTIONS: Record<string, StockOption[]> = {
   AAPL: [
-    { type: 'call', strike: 190, optionPrice: 8.50, confidence: 78 },
-    { type: 'call', strike: 195, optionPrice: 5.20, confidence: 65 },
-    { type: 'put', strike: 185, optionPrice: 4.10, confidence: 72 },
-    { type: 'put', strike: 190, optionPrice: 6.80, confidence: 55 },
+    mockOpt('AAPL', 'call', 190, 8.55, 8.50, 8.50, 56, 0.22),
+    mockOpt('AAPL', 'call', 195, 5.25, 5.20, 5.20, 43, 0.20),
+    mockOpt('AAPL', 'put', 185, 4.12, 4.10, 4.10, 44, 0.21),
+    mockOpt('AAPL', 'put', 190, 6.85, 6.80, 6.80, 23, 0.19),
   ],
   MSFT: [
-    { type: 'call', strike: 410, optionPrice: 12.00, confidence: 82 },
-    { type: 'put', strike: 400, optionPrice: 9.50, confidence: 68 },
+    mockOpt('MSFT', 'call', 410, 12.05, 12.00, 12.00, 64, 0.18),
+    mockOpt('MSFT', 'put', 400, 9.52, 9.50, 9.50, 36, 0.17),
   ],
 };
 
 export function getOptionsForTicker(ticker: string): StockOption[] {
   const key = ticker.toUpperCase();
   return MOCK_STOCK_OPTIONS[key] ?? [
-    { type: 'call', strike: 100, optionPrice: 3.50, confidence: 50 },
-    { type: 'put', strike: 95, optionPrice: 2.80, confidence: 45 },
+    mockOpt(ticker, 'call', 100, 3.55, 3.50, 3.50, 0, 0.25),
+    mockOpt(ticker, 'put', 95, 2.82, 2.80, 2.80, -10, 0.24),
   ];
 }

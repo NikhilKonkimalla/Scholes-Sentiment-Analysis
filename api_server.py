@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"])
+CORS(app, origins=["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"])
 
 # Path to multi-ticker output CSV (project root)
 CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output_multi_ticker.csv")
@@ -62,12 +62,19 @@ def load_csv() -> None:
         logger.exception("Failed to load CSV: %s", e)
 
 
+def _float_or(val, default: float = 0) -> float:
+    try:
+        return float(val) if val != "" else default
+    except (TypeError, ValueError):
+        return default
+
+
 @app.route("/api/stocks/<ticker>/options", methods=["GET"])
 def get_stock_options(ticker: str):
     """
     Return options for the ticker from output_multi_ticker.csv.
-    Each option: { type, strike, optionPrice, confidence }.
-    confidence is derived from score (opportunity score).
+    Each option: ticker, type, expiration, contractSymbol, strike, price, bid,
+    midPrice, score, impliedVolatility, confidence (derived from score).
     """
     ticker = ticker.strip().upper()
     if not ticker:
@@ -76,17 +83,26 @@ def get_stock_options(ticker: str):
     options = []
     for row in rows:
         try:
-            strike = row.get("strike", 0)
-            strike = float(strike) if strike != "" else 0
+            strike = _float_or(row.get("strike"), 0)
+            price = _float_or(row.get("price"), 0)
+            bid = _float_or(row.get("bid"), 0)
             mid = row.get("midPrice") or row.get("price") or 0
-            mid = float(mid) if mid != "" else 0
-            score = row.get("score", 0)
+            mid = _float_or(mid, 0)
+            score = _float_or(row.get("score"), 0)
+            iv = _float_or(row.get("impliedVolatility"), 0)
             opt_type = _option_type_from_contract(row.get("contractSymbol", ""))
             confidence = _score_to_confidence(score)
             options.append({
+                "ticker": row.get("ticker", ticker).strip().upper(),
                 "type": opt_type,
+                "expiration": (row.get("expiration") or "").strip(),
+                "contractSymbol": (row.get("contractSymbol") or "").strip(),
                 "strike": round(strike, 2),
-                "optionPrice": round(mid, 2),
+                "price": round(price, 2),
+                "bid": round(bid, 2),
+                "midPrice": round(mid, 2),
+                "score": round(score, 2),
+                "impliedVolatility": round(iv, 4),
                 "confidence": confidence,
             })
         except (TypeError, ValueError):

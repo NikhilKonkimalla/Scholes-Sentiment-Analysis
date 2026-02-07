@@ -244,48 +244,70 @@ export function StockDetail() {
         )}
         {options === null ? (
           <div className="overflow-auto max-h-64">
-            <table className="w-full text-left text-sm">
+            <table className="w-full min-w-[900px] text-left text-sm">
               <thead className="border-b border-zinc-800 text-zinc-400">
                 <tr>
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3">Strike $</th>
-                  <th className="px-4 py-3">Option price</th>
-                  <th className="px-4 py-3">Confidence</th>
+                  <th className="px-3 py-3">Ticker</th>
+                  <th className="px-3 py-3">Type</th>
+                  <th className="px-3 py-3">Expiration</th>
+                  <th className="px-3 py-3">Contract</th>
+                  <th className="px-3 py-3">Strike</th>
+                  <th className="px-3 py-3">Price</th>
+                  <th className="px-3 py-3">Bid</th>
+                  <th className="px-3 py-3">Mid</th>
+                  <th className="px-3 py-3">Score</th>
+                  <th className="px-3 py-3">IV</th>
                 </tr>
               </thead>
               <tbody>
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <TableRowSkeleton key={i} cols={4} />
+                  <TableRowSkeleton key={i} cols={10} />
                 ))}
               </tbody>
             </table>
           </div>
         ) : (
           <div className="overflow-auto max-h-64 scrollable rounded-lg border border-zinc-800">
-            <table className="w-full text-left text-sm">
+            <table className="w-full min-w-[900px] text-left text-sm">
               <thead className="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-900 font-medium text-zinc-400">
                 <tr>
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3">Strike $</th>
-                  <th className="px-4 py-3">Option price</th>
-                  <th className="px-4 py-3">Confidence</th>
+                  <th className="px-3 py-3">Ticker</th>
+                  <th className="px-3 py-3">Type</th>
+                  <th className="px-3 py-3">Expiration</th>
+                  <th className="px-3 py-3">Contract</th>
+                  <th className="px-3 py-3">Strike</th>
+                  <th className="px-3 py-3">Price</th>
+                  <th className="px-3 py-3">Bid</th>
+                  <th className="px-3 py-3">Mid</th>
+                  <th className="px-3 py-3">Score</th>
+                  <th className="px-3 py-3">IV</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800">
                 {options.map((opt, i) => (
                   <tr key={i} className="transition-colors hover:bg-zinc-800/50">
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2 font-medium text-zinc-200">{opt.ticker}</td>
+                    <td className="px-3 py-2">
                       <Badge variant={opt.type === 'call' ? 'call' : 'put'}>
                         {opt.type.toUpperCase()}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 text-zinc-300">${opt.strike.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-zinc-300">${opt.optionPrice.toFixed(2)}</td>
-                    <td className="px-4 py-3">
-                      <Badge variant={opt.confidence >= 60 ? 'green' : opt.confidence >= 40 ? 'neutral' : 'red'}>
-                        {opt.confidence}
+                    <td className="px-3 py-2 text-zinc-400 text-xs whitespace-nowrap">
+                      {opt.expiration ? new Date(opt.expiration).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' }) : '—'}
+                    </td>
+                    <td className="px-3 py-2 text-zinc-500 text-xs font-mono truncate max-w-[120px]" title={opt.contractSymbol}>
+                      {opt.contractSymbol || '—'}
+                    </td>
+                    <td className="px-3 py-2 text-zinc-300">${opt.strike.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-zinc-300">${opt.price.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-zinc-300">${opt.bid.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-zinc-300">${opt.midPrice.toFixed(2)}</td>
+                    <td className="px-3 py-2">
+                      <Badge variant={opt.score >= 55 ? 'green' : opt.score >= 45 ? 'neutral' : 'red'}>
+                        {opt.score.toFixed(1)}
                       </Badge>
                     </td>
+                    <td className="px-3 py-2 text-zinc-400">{(opt.impliedVolatility * 100).toFixed(2)}%</td>
                   </tr>
                 ))}
               </tbody>
