@@ -12,6 +12,7 @@ import pandas as pd
 
 from market_data import get_spot, get_options_chain
 from news_sentiment import fetch_headlines, score_headlines
+from rss_sentiment import get_ticker_sentiment, get_rolling_sentiment
 from scoring import compute_scores
 
 logging.basicConfig(
@@ -49,6 +50,9 @@ def main() -> int:
     parser.add_argument("--no-cache", action="store_true", help="Force NewsAPI fetch (ignore local CSV cache)")
     parser.add_argument("--cache-hours", type=float, default=24.0, help="NewsAPI cache validity in hours (default: 24)")
     parser.add_argument("--model", type=str, default="auto", choices=["auto", "vader"], help="Sentiment model")
+    parser.add_argument("--rss-weight", type=float, default=0.25, help="Weight for RSS/social sentiment (0-1); rest is news (default 0.25)")
+    parser.add_argument("--rss-hours", type=int, default=24, help="RSS sentiment rolling window in hours (default 24)")
+    parser.add_argument("--no-rss", action="store_true", help="Disable RSS/social sentiment (use news only)")
     args = parser.parse_args()
 
     ticker = args.ticker.strip().upper()
@@ -103,9 +107,21 @@ def main() -> int:
         )
     sentiment_result = score_headlines(headlines, model_preference=args.model)
     sentiment_result["news_source"] = "csv" if args.headlines_csv.strip() else args.news_source
-    sentiment_mean = sentiment_result.get("sentiment_mean", 0.0)
+    news_sentiment = sentiment_result.get("sentiment_mean", 0.0)
     if "warning" in sentiment_result:
         logger.warning("Sentiment: %s", sentiment_result["warning"])
+
+    # Blend in RSS/social sentiment from rss_sentiment.db (optional)
+    sentiment_mean = news_sentiment
+    if not args.no_rss and args.rss_weight > 0:
+        rss_sent = get_ticker_sentiment(ticker, hours=args.rss_hours) or get_rolling_sentiment(args.rss_hours)
+        if rss_sent is not None:
+            w = max(0.0, min(1.0, args.rss_weight))
+            sentiment_mean = (1 - w) * news_sentiment + w * rss_sent
+            logger.info("Sentiment: news=%.4f, rss=%.4f (weight=%.2f) -> combined=%.4f", news_sentiment, rss_sent, w, sentiment_mean)
+        else:
+            logger.debug("No RSS sentiment for %s (rss_sentiment.db empty or no data)", ticker)
+    sentiment_result["sentiment_mean"] = sentiment_mean
 
     # 3) BS + scoring
     try:

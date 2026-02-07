@@ -2,14 +2,31 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../components/Card';
 import { Skeleton } from '../components/Skeleton';
-import { fetchSectors } from '../services/api';
+import { fetchSectors, fetchTickersWithData } from '../services/api';
+import { MOCK_SECTORS } from '../mock/sectors';
+import { MOCK_STOCKS_BY_SECTOR } from '../mock/stocks';
 import type { Sector } from '../mock/sectors';
 
 export function Sectors() {
   const [sectors, setSectors] = useState<Sector[] | null>(null);
 
   useEffect(() => {
-    fetchSectors().then(setSectors);
+    Promise.all([fetchSectors(), fetchTickersWithData()]).then(([allSectors, tickersWithData]) => {
+      if (tickersWithData != null && tickersWithData.length > 0) {
+        const set = new Set(tickersWithData.map((t) => t.toUpperCase()));
+        const filtered: Sector[] = [];
+        for (const sector of allSectors) {
+          const stocks = MOCK_STOCKS_BY_SECTOR[sector.id] ?? [];
+          const withData = stocks.filter((s) => set.has(s.ticker.toUpperCase()));
+          if (withData.length > 0) {
+            filtered.push({ ...sector, stockCount: withData.length });
+          }
+        }
+        setSectors(filtered);
+      } else {
+        setSectors(allSectors);
+      }
+    });
   }, []);
 
   if (sectors === null) {

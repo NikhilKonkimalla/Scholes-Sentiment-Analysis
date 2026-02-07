@@ -110,6 +110,12 @@ def get_stock_options(ticker: str):
     return jsonify({"options": options})
 
 
+@app.route("/api/tickers", methods=["GET"])
+def get_tickers():
+    """Return list of tickers we have options data for (from output_multi_ticker.csv)."""
+    return jsonify({"tickers": sorted(_options_by_ticker.keys())})
+
+
 @app.route("/api/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok", "tickers_loaded": len(_options_by_ticker)})

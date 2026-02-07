@@ -9,6 +9,7 @@ Run: python rss_sentiment.py
 import re
 import sqlite3
 from datetime import datetime, timedelta
+from typing import Optional
 from urllib.request import urlopen, Request
 import feedparser
 
@@ -215,6 +216,52 @@ def per_ticker_sentiment(conn, hours, limit=10):
     bullish = avg[:limit]
     bearish = avg[-limit:][::-1]
     return bullish, bearish
+
+
+def get_ticker_sentiment(ticker: str, hours: int = 24) -> Optional[float]:
+    """
+    Average RSS/social sentiment for the given ticker over the last `hours`.
+    Returns a float in [-1, 1] or None if no data. Safe to call if DB is missing.
+    """
+    ticker = (ticker or "").strip().upper()
+    if not ticker:
+        return None
+    try:
+        conn = get_connection()
+        try:
+            since = (datetime.utcnow() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+            rows = conn.execute(
+                "SELECT sentiment, tickers FROM items WHERE ts >= ? AND tickers != ''",
+                (since,),
+            ).fetchall()
+            sentiments = []
+            for sentiment, tickers_str in rows:
+                for t in tickers_str.split(","):
+                    if t.strip().upper() == ticker:
+                        sentiments.append(sentiment)
+                        break
+            if not sentiments:
+                return None
+            return round(sum(sentiments) / len(sentiments), 4)
+        finally:
+            conn.close()
+    except Exception:
+        return None
+
+
+def get_rolling_sentiment(hours: int = 24) -> Optional[float]:
+    """
+    Overall (market) RSS/social sentiment over the last `hours`.
+    Returns a float in [-1, 1] or None if no data. Safe to call if DB is missing.
+    """
+    try:
+        conn = get_connection()
+        try:
+            return rolling_sentiment(conn, hours)
+        finally:
+            conn.close()
+    except Exception:
+        return None
 
 
 def print_summary():

@@ -34,14 +34,32 @@ export async function checkBackendHealth(): Promise<boolean> {
   return data != null && data.status === 'ok';
 }
 
+/** Tickers we have options data for (from output_multi_ticker.csv). Null if backend unavailable. */
+export async function fetchTickersWithData(): Promise<string[] | null> {
+  const data = await get<{ tickers?: string[] }>('/api/tickers');
+  if (data?.tickers?.length) return data.tickers;
+  return null;
+}
+
 export async function fetchSectors(): Promise<Sector[]> {
   await delay();
   return Promise.resolve([...MOCK_SECTORS]);
 }
 
-export async function fetchSectorStocks(sectorId: string): Promise<Stock[]> {
+/**
+ * Stocks in a sector. If tickersWithData is provided (from backend), only returns stocks
+ * we have options data for; otherwise returns all mock stocks in that sector.
+ */
+export async function fetchSectorStocks(
+  sectorId: string,
+  tickersWithData?: string[] | null
+): Promise<Stock[]> {
   await delay();
-  const stocks = MOCK_STOCKS_BY_SECTOR[sectorId] ?? [];
+  let stocks = MOCK_STOCKS_BY_SECTOR[sectorId] ?? [];
+  if (tickersWithData != null && tickersWithData.length > 0) {
+    const set = new Set(tickersWithData.map((t) => t.toUpperCase()));
+    stocks = stocks.filter((s) => set.has(s.ticker.toUpperCase()));
+  }
   return Promise.resolve([...stocks]);
 }
 
