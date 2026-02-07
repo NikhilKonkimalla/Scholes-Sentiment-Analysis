@@ -1,14 +1,16 @@
 """
-Flask API server that serves options (and scores) from output_multi_ticker.csv.
-Used by the frontend for confidence/suggestions. No live pipeline—CSV only.
+Flask API server: options from output_multi_ticker.csv, stock history/quote from yfinance.
 Run: python api_server.py   (default: http://localhost:5000)
 """
 import csv
 import logging
 import os
 
-from flask import Flask, jsonify
+import pandas as pd
+from flask import Flask, jsonify, request
 from flask_cors import CORS
+
+from market_data import get_history, get_quote
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -114,6 +116,64 @@ def get_stock_options(ticker: str):
 def get_tickers():
     """Return list of tickers we have options data for (from output_multi_ticker.csv)."""
     return jsonify({"tickers": sorted(_options_by_ticker.keys())})
+
+
+@app.route("/api/stocks/<ticker>/history", methods=["GET"])
+def get_stock_history(ticker: str):
+    """
+    Return historical OHLC for the ticker from Yahoo Finance.
+    Query: period=1mo (default), 5d, 1mo, 3mo, 6mo, 1y.
+    Response: { prices: [{ date, price }], ohlc: [{ date, open, high, low, close }] }
+    """
+    ticker = ticker.strip().upper()
+    if not ticker:
+        return jsonify({"error": "Ticker required"}), 400
+    period = request.args.get("period", "1mo").strip() or "1mo"
+    try:
+        df = get_history(ticker, period=period)
+        if df is None or df.empty:
+            return jsonify({"prices": [], "ohlc": []})
+        df = df.reset_index()
+        date_col = "Date" if "Date" in df.columns else (df.columns[0] if len(df.columns) else None)
+        if date_col is not None:
+            df["_date"] = pd.to_datetime(df[date_col], errors="coerce").dt.strftime("%Y-%m-%d")
+        else:
+            df["_date"] = [str(x)[:10] for x in df.index]
+        prices = []
+        ohlc = []
+        for _, row in df.iterrows():
+            d = str(row.get("_date", ""))[:10]
+            if not d or d.startswith("nat") or d == "nan":
+                continue
+            try:
+                open_ = float(row.get("open", 0))
+                high = float(row.get("high", 0))
+                low = float(row.get("low", 0))
+                close = float(row.get("close", 0))
+            except (TypeError, ValueError):
+                continue
+            prices.append({"date": d, "price": round(close, 2)})
+            ohlc.append({"date": d, "open": round(open_, 2), "high": round(high, 2), "low": round(low, 2), "close": round(close, 2)})
+        return jsonify({"prices": prices, "ohlc": ohlc})
+    except Exception as e:
+        logger.exception("History failed for %s: %s", ticker, e)
+        return jsonify({"prices": [], "ohlc": []})
+
+
+@app.route("/api/stocks/<ticker>/quote", methods=["GET"])
+def get_stock_quote(ticker: str):
+    """Return current price and day change from Yahoo Finance. { currentPrice, dayChangePercent }"""
+    ticker = ticker.strip().upper()
+    if not ticker:
+        return jsonify({"error": "Ticker required"}), 400
+    try:
+        q = get_quote(ticker)
+        if q is None:
+            return jsonify({"error": "Quote unavailable"}), 404
+        return jsonify(q)
+    except Exception as e:
+        logger.exception("Quote failed for %s: %s", ticker, e)
+        return jsonify({"error": "Quote failed"}), 500
 
 
 @app.route("/api/health", methods=["GET"])

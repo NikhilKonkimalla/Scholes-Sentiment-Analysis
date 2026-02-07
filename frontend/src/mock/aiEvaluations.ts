@@ -24,7 +24,7 @@ const DEFAULT_EVALUATION: AiEvaluation = {
 export const MOCK_AI_EVALUATIONS: Record<string, AiEvaluation> = {
   AAPL: {
     summary:
-      'Apple remains a quality hold with strong services growth and capital return. Options flow suggests modest put hedging; IV percentile is near median. Near-term catalysts: product cycle and China demand. Favor call spreads over long-dated naked calls given rich premium.',
+      'Apple remains a quality hold with strong services growth and capital return. Options flow suggests put hedging; IV percentile is near median. Near-term catalysts: product cycle and China demand. Given current sentiment and rich call premium, we favor put-side and defined-risk strategies over naked calls.',
     articles: [
       { title: 'Apple stock quote & news', url: 'https://finance.yahoo.com/quote/AAPL' },
       { title: 'Apple Inc. — Reuters', url: 'https://www.reuters.com/markets/companies/AAPL.O/' },
@@ -32,7 +32,7 @@ export const MOCK_AI_EVALUATIONS: Record<string, AiEvaluation> = {
   },
   MSFT: {
     summary:
-      'Microsoft’s cloud and AI narrative keeps sentiment positive; options skew has been call-heavy. IV often elevated around earnings. Consider put spreads for downside hedge or selling premium in low-IV periods. Watch Azure growth and guidance.',
+      'Microsoft’s cloud and AI narrative is key; IV is often elevated around earnings. Given current options sentiment we favor put spreads for downside hedge and defined-risk structures. Watch Azure growth and guidance.',
     articles: [
       { title: 'Microsoft stock quote & news', url: 'https://finance.yahoo.com/quote/MSFT' },
       { title: 'Microsoft Corp. — Reuters', url: 'https://www.reuters.com/markets/companies/MSFT.O/' },
@@ -56,7 +56,7 @@ export const MOCK_AI_EVALUATIONS: Record<string, AiEvaluation> = {
   },
   NVDA: {
     summary:
-      'NVIDIA’s AI narrative keeps momentum and IV elevated. Options are frequently call-biased; put skew can offer relative value for hedges. Prefer spreads and avoid chasing short-dated OTM calls. Monitor data-center and gaming mix.',
+      'NVIDIA’s AI narrative keeps momentum and IV elevated. Put skew can offer relative value for hedges; we favor put-side and spreads over chasing calls. Monitor data-center and gaming mix.',
     articles: [
       { title: 'NVIDIA stock quote & news', url: 'https://finance.yahoo.com/quote/NVDA' },
       { title: 'NVIDIA Corp. — Reuters', url: 'https://www.reuters.com/markets/companies/NVDA.O/' },

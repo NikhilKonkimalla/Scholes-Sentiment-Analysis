@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Breadcrumb } from '../components/Breadcrumb';
 import { TableRowSkeleton } from '../components/Skeleton';
-import { fetchSectorStocks, fetchTickersWithData } from '../services/api';
+import { fetchSectorStocks, fetchTickersWithData, fetchStock } from '../services/api';
 import { MOCK_SECTORS } from '../mock/sectors';
 import type { Stock } from '../mock/stocks';
 
@@ -18,7 +18,12 @@ export function SectorDetail() {
   useEffect(() => {
     if (!sectorId) return;
     fetchTickersWithData().then((tickers) => {
-      fetchSectorStocks(sectorId, tickers).then(setStocks);
+      fetchSectorStocks(sectorId, tickers).then((baseStocks) => {
+        // Enrich with live quotes (Yahoo) so sector list shows accurate prices
+        Promise.all(baseStocks.map((s) => fetchStock(s.ticker))).then((results) => {
+          setStocks(results.filter((x): x is Stock => x != null));
+        });
+      });
     });
   }, [sectorId]);
 
@@ -90,7 +95,7 @@ export function SectorDetail() {
                         <div className="text-xs text-zinc-500">{s.name}</div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-zinc-300">${s.currentPrice.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-zinc-300">${Number(s.currentPrice ?? 0).toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>

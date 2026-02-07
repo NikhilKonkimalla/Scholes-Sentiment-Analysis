@@ -1,7 +1,7 @@
 """
-Market data module: spot price and options chain via yfinance.
+Market data module: spot price, historical OHLC, and options chain via yfinance.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 import logging
 from typing import Optional
@@ -33,6 +33,52 @@ def get_spot(ticker: str) -> float:
     except Exception as e:
         logger.exception("get_spot failed for %s: %s", ticker, e)
         return float("nan")
+
+
+def get_history(ticker: str, period: str = "1mo") -> pd.DataFrame:
+    """
+    Fetch historical OHLCV for the ticker using yfinance.
+    period: "1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y".
+    Returns DataFrame with columns: date (index), open, high, low, close, volume.
+    Empty DataFrame on failure.
+    """
+    try:
+        t = yf.Ticker(ticker)
+        hist = t.history(period=period)
+        if hist is None or hist.empty:
+            logger.warning("No history returned for %s period=%s", ticker, period)
+            return pd.DataFrame()
+        col_map = {"Open": "open", "High": "high", "Low": "low", "Close": "close", "Volume": "volume"}
+        hist = hist.rename(columns=col_map)
+        for c in ["open", "high", "low", "close"]:
+            if c not in hist.columns:
+                return pd.DataFrame()
+        return hist[["open", "high", "low", "close"]].copy()
+    except Exception as e:
+        logger.exception("get_history failed for %s: %s", ticker, e)
+        return pd.DataFrame()
+
+
+def get_quote(ticker: str) -> Optional[dict]:
+    """
+    Fetch current quote (price and day change) for the ticker using yfinance.
+    Returns dict with currentPrice, dayChangePercent, or None on failure.
+    """
+    try:
+        t = yf.Ticker(ticker)
+        hist = t.history(period="5d")
+        if hist is None or hist.empty or len(hist) < 2:
+            close = get_spot(ticker)
+            if close != close:
+                return None
+            return {"currentPrice": float(close), "dayChangePercent": 0.0}
+        last = hist["Close"].iloc[-1]
+        prev = hist["Close"].iloc[-2]
+        pct = ((float(last) - float(prev)) / float(prev)) * 100.0 if prev and float(prev) != 0 else 0.0
+        return {"currentPrice": float(last), "dayChangePercent": round(pct, 2)}
+    except Exception as e:
+        logger.exception("get_quote failed for %s: %s", ticker, e)
+        return None
 
 
 def _expiration_to_utc(exp: str) -> Optional[datetime]:

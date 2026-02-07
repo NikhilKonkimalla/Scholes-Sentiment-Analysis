@@ -53,6 +53,7 @@ def main() -> int:
     parser.add_argument("--rss-weight", type=float, default=0.25, help="Weight for RSS/social sentiment (0-1); rest is news (default 0.25)")
     parser.add_argument("--rss-hours", type=int, default=24, help="RSS sentiment rolling window in hours (default 24)")
     parser.add_argument("--no-rss", action="store_true", help="Disable RSS/social sentiment (use news only)")
+    parser.add_argument("--sentiment-weight", type=float, default=1.0, help="Weight for sentiment vs mispricing (1.0 = sentiment only)")
     args = parser.parse_args()
 
     ticker = args.ticker.strip().upper()
@@ -125,15 +126,20 @@ def main() -> int:
 
     # 3) BS + scoring
     try:
-        scored_df = compute_scores(options_df, spot, args.r, sentiment_mean)
+        scored_df = compute_scores(options_df, spot, args.r, sentiment_mean, sentiment_weight=args.sentiment_weight)
     except Exception as e:
         logger.exception("Scoring failed: %s", e)
         return 1
 
-    # 4) Output CSV (convert expiration for CSV if datetime)
+    # 4) Output CSV — essential columns only (no theo_price, liquidity_score, spread_penalty, etc.)
     csv_path = f"output_{ticker}.csv"
-    out_df = scored_df.copy()
-    if "expiration" in out_df.columns and hasattr(out_df["expiration"].iloc[0], "isoformat"):
+    out_cols = [
+        "ticker", "expiration", "option_type", "contractSymbol", "strike",
+        "lastPrice", "bid", "ask", "mid_price", "impliedVolatility", "opportunity_score",
+    ]
+    out_cols = [c for c in out_cols if c in scored_df.columns]
+    out_df = scored_df[out_cols].copy()
+    if "expiration" in out_df.columns and len(out_df) and hasattr(out_df["expiration"].iloc[0], "isoformat"):
         out_df["expiration"] = out_df["expiration"].astype(str)
     out_df.to_csv(csv_path, index=False)
     logger.info("Wrote %s", csv_path)

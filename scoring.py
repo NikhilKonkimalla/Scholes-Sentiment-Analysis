@@ -17,11 +17,15 @@ def compute_scores(
     spot: float,
     r: float,
     sentiment_mean: float,
+    sentiment_weight: float = 1.0,
 ) -> pd.DataFrame:
     """
     Add theo_price, pricing_gap, pricing_gap_pct, liquidity_score, spread_penalty,
     alignment, opportunity_score_raw, opportunity_score, risk_flag to options_df.
     Returns a new DataFrame with these columns added.
+
+    sentiment_weight: 0-1. When 1.0 (default), alignment is sentiment-only: bearish
+    -> favor puts (Buy), avoid calls (Avoid). When <1, mispricing can soften that.
     """
     if options_df is None or options_df.empty:
         return pd.DataFrame()
@@ -59,7 +63,7 @@ def compute_scores(
     )
     df["spread_penalty"] = df["spread_penalty"].fillna(5)  # treat NaN spread as max penalty
 
-    # alignment: sign(sentiment_mean) * (+1 for calls, -1 for puts)
+    # alignment: sentiment only (default). Bearish -> favor puts (+1), disfavor calls (-1)
     call_put_sign = np.where(df["option_type"] == "call", 1, -1)
     sentiment_sign = np.sign(sentiment_mean) if sentiment_mean != 0 else 0
     df["alignment"] = sentiment_sign * call_put_sign

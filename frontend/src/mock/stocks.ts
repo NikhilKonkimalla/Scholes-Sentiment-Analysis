@@ -48,7 +48,7 @@ export const MOCK_STOCKS_BY_SECTOR: Record<string, Stock[]> = {
   ],
   health: [
     { ticker: 'JNJ', name: 'Johnson & Johnson', sectorId: 'health', currentPrice: 158.40, dayChangePercent: 0.4 },
-    { ticker: 'UNH', name: 'UnitedHealth', sectorId: 'health', currentPrice: 525.00, dayChangePercent: -0.2 },
+    { ticker: 'UNH', name: 'UnitedHealth Group', sectorId: 'health', currentPrice: 270.00, dayChangePercent: -0.2 },
     { ticker: 'PFE', name: 'Pfizer Inc.', sectorId: 'health', currentPrice: 28.50, dayChangePercent: 1.1 },
   ],
   finance: [

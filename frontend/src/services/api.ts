@@ -65,17 +65,37 @@ export async function fetchSectorStocks(
   return Promise.resolve([...stocks]);
 }
 
-export async function fetchStockPrices(ticker: string, _range: string = '1m'): Promise<PricePoint[]> {
-  await delay();
+/** Map range to yfinance period. */
+function rangeToPeriod(range: string): string {
+  if (range === '5d') return '5d';
+  if (range === '3m' || range === '3mo') return '3mo';
+  if (range === '6m' || range === '6mo') return '6mo';
+  if (range === '1y') return '1y';
+  return '1mo';
+}
+
+/** Historical prices (close) and OHLC from backend (Yahoo Finance). Falls back to mock if API unavailable. */
+export async function fetchStockPrices(ticker: string, range: string = '1m'): Promise<PricePoint[]> {
+  const period = rangeToPeriod(range);
+  const data = await get<{ prices: { date: string; price: number }[] }>(
+    `/api/stocks/${encodeURIComponent(ticker)}/history?period=${encodeURIComponent(period)}`
+  );
+  if (data?.prices?.length) return data.prices;
   const stock = getStockByTicker(ticker);
   const base = stock?.currentPrice ?? 100;
+  await delay();
   return Promise.resolve(generateMockPrices(ticker, base));
 }
 
-export async function fetchStockOHLC(ticker: string, _range: string = '1m'): Promise<OHLCPoint[]> {
-  await delay();
+export async function fetchStockOHLC(ticker: string, range: string = '1m'): Promise<OHLCPoint[]> {
+  const period = rangeToPeriod(range);
+  const data = await get<{ ohlc: OHLCPoint[] }>(
+    `/api/stocks/${encodeURIComponent(ticker)}/history?period=${encodeURIComponent(period)}`
+  );
+  if (data?.ohlc?.length) return data.ohlc;
   const stock = getStockByTicker(ticker);
   const base = stock?.currentPrice ?? 100;
+  await delay();
   return Promise.resolve(generateMockOHLC(ticker, base));
 }
 
@@ -92,8 +112,23 @@ export async function fetchStockOptions(ticker: string): Promise<StockOption[]> 
   return Promise.resolve([...getOptionsForTicker(ticker)]);
 }
 
+/** Stock metadata. Uses backend quote (Yahoo) for price/dayChange when API is up; otherwise mock. */
 export async function fetchStock(ticker: string): Promise<Stock | null> {
+  const quote = await get<{ currentPrice: number; dayChangePercent: number }>(
+    `/api/stocks/${encodeURIComponent(ticker)}/quote`
+  );
+  const mock = getStockByTicker(ticker);
+  if (quote && typeof quote.currentPrice === 'number') {
+    return mock
+      ? { ...mock, currentPrice: quote.currentPrice, dayChangePercent: quote.dayChangePercent ?? 0 }
+      : {
+          ticker: ticker.toUpperCase(),
+          name: ticker,
+          sectorId: 'technology',
+          currentPrice: quote.currentPrice,
+          dayChangePercent: quote.dayChangePercent ?? 0,
+        };
+  }
   await delay();
-  const s = getStockByTicker(ticker);
-  return Promise.resolve(s ?? null);
+  return Promise.resolve(mock ?? null);
 }

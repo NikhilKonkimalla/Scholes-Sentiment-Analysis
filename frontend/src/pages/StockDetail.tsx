@@ -144,9 +144,9 @@ export function StockDetail() {
           {stock && (
             <>
               {sector && <Badge variant="neutral">{sector.name}</Badge>}
-              <span className="text-zinc-300">${stock.currentPrice.toFixed(2)}</span>
-              <Badge variant={stock.dayChangePercent >= 0 ? 'green' : 'red'}>
-                {stock.dayChangePercent >= 0 ? '+' : ''}{stock.dayChangePercent.toFixed(2)}%
+              <span className="text-zinc-300">${Number(stock.currentPrice ?? 0).toFixed(2)}</span>
+              <Badge variant={(stock.dayChangePercent ?? 0) >= 0 ? 'green' : 'red'}>
+                {(stock.dayChangePercent ?? 0) >= 0 ? '+' : ''}{Number(stock.dayChangePercent ?? 0).toFixed(2)}%
               </Badge>
             </>
           )}
@@ -194,7 +194,7 @@ export function StockDetail() {
                     <XAxis
                       dataKey="date"
                       tick={{ fill: '#71717a', fontSize: 10 }}
-                      tickFormatter={(v) => v.slice(5)}
+                      tickFormatter={(v) => (v && typeof v === 'string' ? v.slice(5) : '')}
                     />
                     <YAxis
                       domain={['auto', 'auto']}
@@ -226,17 +226,14 @@ export function StockDetail() {
             </div>
           </Card>
 
-          <Card title="AI Evaluation">
+          <Card title="Evaluation">
             <div className="space-y-3">
-              <div className="flex items-start gap-2">
-                <Badge variant="neutral" className="shrink-0">Generated</Badge>
-                <p className="text-sm text-zinc-300 leading-relaxed">{aiEvaluation.summary}</p>
-              </div>
-              {aiEvaluation.articles?.length ? (
+              <p className="text-sm text-zinc-300 leading-relaxed">{aiEvaluation?.summary ?? '—'}</p>
+              {aiEvaluation?.articles?.length ? (
                 <div className="border-t border-zinc-800 pt-3">
                   <p className="text-xs font-medium text-zinc-400 mb-2">Related articles</p>
                   <ul className="space-y-1.5">
-                    {aiEvaluation.articles.map((a, i) => (
+                    {(aiEvaluation?.articles ?? []).map((a, i) => (
                       <li key={i}>
                         <a
                           href={a.url}
@@ -266,64 +263,71 @@ export function StockDetail() {
         )}
         {options === null ? (
           <div className="overflow-auto max-h-64">
-            <table className="w-full min-w-[900px] text-left text-sm">
+            <table className="w-full min-w-[800px] text-left text-sm">
               <thead className="border-b border-zinc-800 text-zinc-400">
                 <tr>
                   <th className="px-3 py-3">Ticker</th>
                   <th className="px-3 py-3">Type</th>
                   <th className="px-3 py-3">Expiration</th>
-                  <th className="px-3 py-3">Contract</th>
                   <th className="px-3 py-3">Strike</th>
                   <th className="px-3 py-3">Price</th>
                   <th className="px-3 py-3">Bid</th>
                   <th className="px-3 py-3">Mid</th>
-                  <th className="px-3 py-3">Score</th>
+                  <th className="px-3 py-3">Recommendation</th>
                   <th className="px-3 py-3">IV</th>
                 </tr>
               </thead>
               <tbody>
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <TableRowSkeleton key={i} cols={10} />
+                  <TableRowSkeleton key={i} cols={9} />
                 ))}
               </tbody>
             </table>
           </div>
         ) : (
           <div className="overflow-auto max-h-64 scrollable rounded-lg border border-zinc-800">
-            <table className="w-full min-w-[900px] text-left text-sm">
+            <table className="w-full min-w-[800px] text-left text-sm">
               <thead className="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-900 font-medium text-zinc-400">
                 <tr>
                   <th className="px-3 py-3">Ticker</th>
                   <th className="px-3 py-3">Type</th>
                   <th className="px-3 py-3">Expiration</th>
-                  <th className="px-3 py-3">Contract</th>
                   <th className="px-3 py-3">Strike</th>
                   <th className="px-3 py-3">Price</th>
                   <th className="px-3 py-3">Bid</th>
                   <th className="px-3 py-3">Mid</th>
-                  <th className="px-3 py-3">Score</th>
+                  <th className="px-3 py-3">Recommendation</th>
                   <th className="px-3 py-3">IV</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800">
-                {options.map((opt, i) => (
-                  <tr key={i} className="transition-colors hover:bg-zinc-800/50">
-                    <td className="px-3 py-2 font-medium text-zinc-200">{opt.ticker}</td>
-                    <td className="px-3 py-2">
-                      <Badge variant={opt.type === 'call' ? 'call' : 'put'}>
-                        {opt.type.toUpperCase()}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-zinc-300">${opt.strike.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-zinc-300">${opt.optionPrice.toFixed(2)}</td>
-                    <td className="px-4 py-3">
-                      <Badge variant={opt.confidence >= 60 ? 'green' : opt.confidence >= 40 ? 'yellow' : 'red'}>
-                        {opt.confidence}
-                      </Badge>
-                    </td>
-                    <td className="px-3 py-2 text-zinc-400">{(opt.impliedVolatility * 100).toFixed(2)}%</td>
-                  </tr>
-                ))}
+                {options.map((opt, i) => {
+                  const mid = opt.optionPrice ?? opt.midPrice ?? opt.price ?? 0;
+                  const conf = opt.confidence ?? 50;
+                  const iv = opt.impliedVolatility ?? 0;
+                  const recommendation = conf >= 60 ? 'Buy' : conf >= 40 ? 'Neutral' : 'Avoid';
+                  return (
+                    <tr key={i} className="transition-colors hover:bg-zinc-800/50">
+                      <td className="px-3 py-2 font-medium text-zinc-200">{opt.ticker}</td>
+                      <td className="px-3 py-2">
+                        <Badge variant={opt.type === 'call' ? 'call' : 'put'}>
+                          {opt.type.toUpperCase()}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2 text-zinc-400 text-xs">{opt.expiration ? String(opt.expiration).slice(0, 10) : '—'}</td>
+                      <td className="px-3 py-2 text-zinc-300">${Number(opt.strike).toFixed(2)}</td>
+                      <td className="px-3 py-2 text-zinc-300">${Number(opt.price ?? opt.midPrice ?? mid).toFixed(2)}</td>
+                      <td className="px-3 py-2 text-zinc-300">${Number(opt.bid ?? 0).toFixed(2)}</td>
+                      <td className="px-3 py-2 text-zinc-300">${Number(mid).toFixed(2)}</td>
+                      <td className="px-3 py-2">
+                        <Badge variant={conf >= 60 ? 'green' : conf >= 40 ? 'yellow' : 'red'} title={conf >= 60 ? 'Recommended to buy' : conf >= 40 ? 'Neutral' : 'Not recommended'}>
+                          {recommendation} ({conf})
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2 text-zinc-400">{(iv * 100).toFixed(2)}%</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
