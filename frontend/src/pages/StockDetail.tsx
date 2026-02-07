@@ -266,37 +266,50 @@ export function StockDetail() {
         )}
         {options === null ? (
           <div className="overflow-auto max-h-64">
-            <table className="w-full text-left text-sm">
+            <table className="w-full min-w-[900px] text-left text-sm">
               <thead className="border-b border-zinc-800 text-zinc-400">
                 <tr>
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3">Strike $</th>
-                  <th className="px-4 py-3">Option price</th>
-                  <th className="px-4 py-3">Confidence</th>
+                  <th className="px-3 py-3">Ticker</th>
+                  <th className="px-3 py-3">Type</th>
+                  <th className="px-3 py-3">Expiration</th>
+                  <th className="px-3 py-3">Contract</th>
+                  <th className="px-3 py-3">Strike</th>
+                  <th className="px-3 py-3">Price</th>
+                  <th className="px-3 py-3">Bid</th>
+                  <th className="px-3 py-3">Mid</th>
+                  <th className="px-3 py-3">Score</th>
+                  <th className="px-3 py-3">IV</th>
                 </tr>
               </thead>
               <tbody>
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <TableRowSkeleton key={i} cols={4} />
+                  <TableRowSkeleton key={i} cols={10} />
                 ))}
               </tbody>
             </table>
           </div>
         ) : (
           <div className="overflow-auto max-h-64 scrollable rounded-lg border border-zinc-800">
-            <table className="w-full text-left text-sm">
+            <table className="w-full min-w-[900px] text-left text-sm">
               <thead className="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-900 font-medium text-zinc-400">
                 <tr>
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3">Strike $</th>
-                  <th className="px-4 py-3">Option price</th>
-                  <th className="px-4 py-3">Confidence</th>
+                  <th className="px-3 py-3">Ticker</th>
+                  <th className="px-3 py-3">Type</th>
+                  <th className="px-3 py-3">Expiration</th>
+                  <th className="px-3 py-3">Contract</th>
+                  <th className="px-3 py-3">Strike</th>
+                  <th className="px-3 py-3">Price</th>
+                  <th className="px-3 py-3">Bid</th>
+                  <th className="px-3 py-3">Mid</th>
+                  <th className="px-3 py-3">Score</th>
+                  <th className="px-3 py-3">IV</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800">
                 {options.map((opt, i) => (
                   <tr key={i} className="transition-colors hover:bg-zinc-800/50">
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2 font-medium text-zinc-200">{opt.ticker}</td>
+                    <td className="px-3 py-2">
                       <Badge variant={opt.type === 'call' ? 'call' : 'put'}>
                         {opt.type.toUpperCase()}
                       </Badge>
@@ -308,6 +321,7 @@ export function StockDetail() {
                         {opt.confidence}
                       </Badge>
                     </td>
+                    <td className="px-3 py-2 text-zinc-400">{(opt.impliedVolatility * 100).toFixed(2)}%</td>
                   </tr>
                 ))}
               </tbody>
