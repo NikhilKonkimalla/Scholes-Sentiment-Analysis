@@ -320,9 +320,11 @@ export function StockDetail() {
                       <td className="px-3 py-2 text-zinc-300">${Number(opt.bid ?? 0).toFixed(2)}</td>
                       <td className="px-3 py-2 text-zinc-300">${Number(mid).toFixed(2)}</td>
                       <td className="px-3 py-2">
-                        <Badge variant={conf >= 60 ? 'green' : conf >= 40 ? 'yellow' : 'red'} title={conf >= 60 ? 'Recommended to buy' : conf >= 40 ? 'Neutral' : 'Not recommended'}>
-                          {recommendation} ({conf})
-                        </Badge>
+                        <span title={conf >= 60 ? 'Recommended to buy' : conf >= 40 ? 'Neutral' : 'Not recommended'}>
+                          <Badge variant={conf >= 60 ? 'green' : conf >= 40 ? 'yellow' : 'red'}>
+                            {recommendation} ({conf})
+                          </Badge>
+                        </span>
                       </td>
                       <td className="px-3 py-2 text-zinc-400">{(iv * 100).toFixed(2)}%</td>
                     </tr>

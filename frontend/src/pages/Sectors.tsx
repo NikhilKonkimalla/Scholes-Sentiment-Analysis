@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { Card } from '../components/Card';
 import { Skeleton } from '../components/Skeleton';
 import { fetchSectors, fetchTickersWithData } from '../services/api';
-import { MOCK_SECTORS } from '../mock/sectors';
 import { MOCK_STOCKS_BY_SECTOR, getStockByTicker, EXTRA_TICKERS_CAP, EXTRA_TICKER_SECTORS, EXTRA_TICKERS_ORDER } from '../mock/stocks';
 import type { Sector } from '../mock/sectors';
 

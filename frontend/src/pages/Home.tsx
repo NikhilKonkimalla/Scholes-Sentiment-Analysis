@@ -13,7 +13,6 @@ import {
   Percent,
   Shield,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
 
 type SortKey = 'ticker' | 'strikePrice' | 'boughtAtPrice';
 
