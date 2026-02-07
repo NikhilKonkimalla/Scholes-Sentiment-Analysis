@@ -1,0 +1,10 @@
+{
+  "sentiment_mean": 0.0,
+  "sentiment_std": 0.0,
+  "sentiment_count": 20,
+  "headline_scores": [],
+  "top_positive": [],
+  "top_negative": [],
+  "warning": "Could not compute sentiment (FinBERT and VADER unavailable).",
+  "news_source": "yahoo"
+}
