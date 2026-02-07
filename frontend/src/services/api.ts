@@ -8,7 +8,7 @@ import type { Sector } from '../mock/sectors';
 import type { Stock, PricePoint, StockOption, OHLCPoint } from '../mock/stocks';
 import type { AiEvaluation } from '../mock/aiEvaluations';
 import { MOCK_SECTORS } from '../mock/sectors';
-import { MOCK_STOCKS_BY_SECTOR, getStockByTicker, generateMockPrices, generateMockOHLC, getOptionsForTicker } from '../mock/stocks';
+import { MOCK_STOCKS_BY_SECTOR, getStockByTicker, generateMockPrices, generateMockOHLC, getOptionsForTicker, EXTRA_TICKERS_CAP, EXTRA_TICKER_SECTORS, EXTRA_TICKERS_ORDER } from '../mock/stocks';
 import { getAiEvaluation } from '../mock/aiEvaluations';
 
 const API_BASE =
@@ -49,8 +49,8 @@ export async function fetchSectors(): Promise<Sector[]> {
 }
 
 /**
- * Stocks in a sector. If tickersWithData is provided (from backend), only returns stocks
- * we have options data for; otherwise returns all mock stocks in that sector.
+ * Stocks in a sector. If tickersWithData is provided (from backend), returns mock stocks
+ * with data plus up to EXTRA_TICKERS_CAP extra tickers assigned to this sector (from API, not in mock).
  */
 export async function fetchSectorStocks(
   sectorId: string,
@@ -61,6 +61,28 @@ export async function fetchSectorStocks(
   if (tickersWithData != null && tickersWithData.length > 0) {
     const set = new Set(tickersWithData.map((t) => t.toUpperCase()));
     stocks = stocks.filter((s) => set.has(s.ticker.toUpperCase()));
+    // Add extra tickers assigned to this sector (cap 20 total across all sectors)
+    const apiOnly = tickersWithData.filter((t) => !getStockByTicker(t));
+    const inMap = apiOnly.filter((t) => EXTRA_TICKER_SECTORS[t.toUpperCase()]);
+    const ordered = [...inMap].sort((a, b) => {
+      const i = EXTRA_TICKERS_ORDER.indexOf(a.toUpperCase());
+      const j = EXTRA_TICKERS_ORDER.indexOf(b.toUpperCase());
+      if (i < 0 && j < 0) return 0;
+      if (i < 0) return 1;
+      if (j < 0) return -1;
+      return i - j;
+    });
+    const capped = ordered.slice(0, EXTRA_TICKERS_CAP);
+    const forSector = capped.filter((t) => (EXTRA_TICKER_SECTORS[t.toUpperCase()] ?? '') === sectorId);
+    for (const t of forSector) {
+      stocks.push({
+        ticker: t.toUpperCase(),
+        name: t,
+        sectorId,
+        currentPrice: 0,
+        dayChangePercent: 0,
+      });
+    }
   }
   return Promise.resolve([...stocks]);
 }

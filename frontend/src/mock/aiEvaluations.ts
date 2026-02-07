@@ -190,6 +190,183 @@ export const MOCK_AI_EVALUATIONS: Record<string, AiEvaluation> = {
       { title: 'Linde plc — Reuters', url: 'https://www.reuters.com/markets/companies/LIN.N/' },
     ],
   },
+  // Extra tickers (capped 20) — default evaluations
+  AMD: {
+    summary:
+      'AMD’s data-center and PC exposure drives options flow; IV is often elevated around earnings and product cycles. Given current sentiment we favor put-side and defined-risk strategies. Watch share gains vs NVIDIA and guidance.',
+    articles: [
+      { title: 'AMD stock quote & news', url: 'https://finance.yahoo.com/quote/AMD' },
+      { title: 'AMD — Reuters', url: 'https://www.reuters.com/markets/companies/AMD.O/' },
+    ],
+  },
+  INTC: {
+    summary:
+      'Intel options reflect foundry and PC sentiment; turnaround and capex drive volatility. IV can spike around earnings and process updates. Favor defined-risk structures; avoid large single-leg plays.',
+    articles: [
+      { title: 'Intel stock quote & news', url: 'https://finance.yahoo.com/quote/INTC' },
+      { title: 'Intel Corp. — Reuters', url: 'https://www.reuters.com/markets/companies/INTC.O/' },
+    ],
+  },
+  QCOM: {
+    summary:
+      'Qualcomm’s mobile and auto exposure keeps options active; IV often rises into earnings. Given current options bias we favor put-side and spreads. Watch licensing and chip demand trends.',
+    articles: [
+      { title: 'Qualcomm stock quote & news', url: 'https://finance.yahoo.com/quote/QCOM' },
+      { title: 'Qualcomm — Reuters', url: 'https://www.reuters.com/markets/companies/QCOM.O/' },
+    ],
+  },
+  ORCL: {
+    summary:
+      'Oracle’s cloud and database narrative drives options interest; IV can spike around earnings. Favor defined-risk structures; watch cloud growth and guidance.',
+    articles: [
+      { title: 'Oracle stock quote & news', url: 'https://finance.yahoo.com/quote/ORCL' },
+      { title: 'Oracle Corp. — Reuters', url: 'https://www.reuters.com/markets/companies/ORCL.N/' },
+    ],
+  },
+  ADBE: {
+    summary:
+      'Adobe’s creative and document cloud mix drives options flow; IV often elevated around product and earnings news. We favor put-side and spreads over naked calls.',
+    articles: [
+      { title: 'Adobe stock quote & news', url: 'https://finance.yahoo.com/quote/ADBE' },
+      { title: 'Adobe Inc. — Reuters', url: 'https://www.reuters.com/markets/companies/ADBE.O/' },
+    ],
+  },
+  ABBV: {
+    summary:
+      'AbbVie’s immunology and aesthetics portfolio drives options interest; IV can move on pipeline and policy. Favor defined-risk structures; watch Humira biosimilar and new product uptake.',
+    articles: [
+      { title: 'AbbVie stock quote & news', url: 'https://finance.yahoo.com/quote/ABBV' },
+      { title: 'AbbVie — Reuters', url: 'https://www.reuters.com/markets/companies/ABBV.N/' },
+    ],
+  },
+  GILD: {
+    summary:
+      'Gilead’s HIV and oncology focus keeps options flow steady; IV can spike around trial and approval news. Given current sentiment we favor put-side and defined-risk strategies.',
+    articles: [
+      { title: 'Gilead stock quote & news', url: 'https://finance.yahoo.com/quote/GILD' },
+      { title: 'Gilead Sciences — Reuters', url: 'https://www.reuters.com/markets/companies/GILD.O/' },
+    ],
+  },
+  AMGN: {
+    summary:
+      'Amgen’s biologics and pipeline drive options interest; IV often rises around earnings and regulatory updates. Favor spreads; watch biosimilar and new product trends.',
+    articles: [
+      { title: 'Amgen stock quote & news', url: 'https://finance.yahoo.com/quote/AMGN' },
+      { title: 'Amgen — Reuters', url: 'https://www.reuters.com/markets/companies/AMGN.O/' },
+    ],
+  },
+  GS: {
+    summary:
+      'Goldman Sachs options reflect macro and deal flow; IV ties to rates and volatility. Given current options bias we favor put-side and defined-risk structures. Watch trading and investment banking revenue.',
+    articles: [
+      { title: 'Goldman Sachs stock quote & news', url: 'https://finance.yahoo.com/quote/GS' },
+      { title: 'Goldman Sachs — Reuters', url: 'https://www.reuters.com/markets/companies/GS.N/' },
+    ],
+  },
+  MS: {
+    summary:
+      'Morgan Stanley’s wealth and institutional mix drives options flow; IV often rises into earnings. Favor defined-risk structures; watch net interest income and advisory trends.',
+    articles: [
+      { title: 'Morgan Stanley stock quote & news', url: 'https://finance.yahoo.com/quote/MS' },
+      { title: 'Morgan Stanley — Reuters', url: 'https://www.reuters.com/markets/companies/MS.N/' },
+    ],
+  },
+  AXP: {
+    summary:
+      'American Express options reflect consumer spending and credit; IV can spike around earnings. We favor put-side and spreads. Watch card volume and reserve trends.',
+    articles: [
+      { title: 'American Express stock quote & news', url: 'https://finance.yahoo.com/quote/AXP' },
+      { title: 'American Express — Reuters', url: 'https://www.reuters.com/markets/companies/AXP.N/' },
+    ],
+  },
+  NKE: {
+    summary:
+      'Nike options track consumer and China sentiment; IV often elevated around earnings and guidance. Favor defined-risk structures; watch direct and wholesale mix.',
+    articles: [
+      { title: 'Nike stock quote & news', url: 'https://finance.yahoo.com/quote/NKE' },
+      { title: 'Nike Inc. — Reuters', url: 'https://www.reuters.com/markets/companies/NKE.N/' },
+    ],
+  },
+  SBUX: {
+    summary:
+      'Starbucks options reflect same-store sales and China; IV can spike around earnings. Given current sentiment we favor put-side and spreads. Watch traffic and unit growth.',
+    articles: [
+      { title: 'Starbucks stock quote & news', url: 'https://finance.yahoo.com/quote/SBUX' },
+      { title: 'Starbucks — Reuters', url: 'https://www.reuters.com/markets/companies/SBUX.O/' },
+    ],
+  },
+  MCD: {
+    summary:
+      'McDonald’s options track traffic and franchise mix; IV often rises into earnings. Favor defined-risk structures; watch same-store sales and development guidance.',
+    articles: [
+      { title: 'McDonald\'s stock quote & news', url: 'https://finance.yahoo.com/quote/MCD' },
+      { title: 'McDonald\'s — Reuters', url: 'https://www.reuters.com/markets/companies/MCD.N/' },
+    ],
+  },
+  GE: {
+    summary:
+      'GE Aerospace and energy transition drive options flow; IV can move on earnings and segment updates. We favor put-side and defined-risk strategies. Watch aerospace orders and margin.',
+    articles: [
+      { title: 'GE Aerospace stock quote & news', url: 'https://finance.yahoo.com/quote/GE' },
+      { title: 'GE Aerospace — Reuters', url: 'https://www.reuters.com/markets/companies/GE.N/' },
+    ],
+  },
+  HON: {
+    summary:
+      'Honeywell’s diversified industrials drive options interest; IV often rises into earnings. Favor spreads; watch aerospace, building tech, and guidance.',
+    articles: [
+      { title: 'Honeywell stock quote & news', url: 'https://finance.yahoo.com/quote/HON' },
+      { title: 'Honeywell — Reuters', url: 'https://www.reuters.com/markets/companies/HON.O/' },
+    ],
+  },
+  UPS: {
+    summary:
+      'UPS options reflect shipping and macro sentiment; IV can spike around earnings and volume updates. Given current bias we favor put-side and defined-risk structures.',
+    articles: [
+      { title: 'UPS stock quote & news', url: 'https://finance.yahoo.com/quote/UPS' },
+      { title: 'UPS — Reuters', url: 'https://www.reuters.com/markets/companies/UPS.N/' },
+    ],
+  },
+  FCX: {
+    summary:
+      'Freeport-McMoRan options reflect copper and commodity sentiment; IV can spike on macro and production news. Favor defined-risk structures; watch copper prices and capex.',
+    articles: [
+      { title: 'Freeport-McMoRan stock quote & news', url: 'https://finance.yahoo.com/quote/FCX' },
+      { title: 'Freeport-McMoRan — Reuters', url: 'https://www.reuters.com/markets/companies/FCX.N/' },
+    ],
+  },
+  AA: {
+    summary:
+      'Alcoa options reflect aluminum and macro sentiment; IV can move on commodity and demand updates. We favor put-side and spreads. Watch aluminum prices and smelter guidance.',
+    articles: [
+      { title: 'Alcoa stock quote & news', url: 'https://finance.yahoo.com/quote/AA' },
+      { title: 'Alcoa — Reuters', url: 'https://www.reuters.com/markets/companies/AA.N/' },
+    ],
+  },
+  DUK: {
+    summary:
+      'Duke Energy options reflect utilities and rate-case sentiment; IV is typically moderate. Favor defined-risk structures; watch capex and regulatory updates.',
+    articles: [
+      { title: 'Duke Energy stock quote & news', url: 'https://finance.yahoo.com/quote/DUK' },
+      { title: 'Duke Energy — Reuters', url: 'https://www.reuters.com/markets/companies/DUK.N/' },
+    ],
+  },
+  COP: {
+    summary:
+      'ConocoPhillips options reflect oil and gas sentiment; IV can rise with crude volatility. Given current options bias we favor put-side and defined-risk strategies. Watch production and buybacks.',
+    articles: [
+      { title: 'ConocoPhillips stock quote & news', url: 'https://finance.yahoo.com/quote/COP' },
+      { title: 'ConocoPhillips — Reuters', url: 'https://www.reuters.com/markets/companies/COP.N/' },
+    ],
+  },
+  SLB: {
+    summary:
+      'SLB (Schlumberger) options reflect oil services and international demand; IV can spike around earnings and rig activity. Favor spreads; watch North America and international mix.',
+    articles: [
+      { title: 'SLB stock quote & news', url: 'https://finance.yahoo.com/quote/SLB' },
+      { title: 'SLB — Reuters', url: 'https://www.reuters.com/markets/companies/SLB.N/' },
+    ],
+  },
 };
 
 export function getAiEvaluation(ticker: string): AiEvaluation {

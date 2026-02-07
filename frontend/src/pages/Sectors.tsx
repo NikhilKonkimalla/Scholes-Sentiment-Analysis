@@ -4,7 +4,7 @@ import { Card } from '../components/Card';
 import { Skeleton } from '../components/Skeleton';
 import { fetchSectors, fetchTickersWithData } from '../services/api';
 import { MOCK_SECTORS } from '../mock/sectors';
-import { MOCK_STOCKS_BY_SECTOR } from '../mock/stocks';
+import { MOCK_STOCKS_BY_SECTOR, getStockByTicker, EXTRA_TICKERS_CAP, EXTRA_TICKER_SECTORS, EXTRA_TICKERS_ORDER } from '../mock/stocks';
 import type { Sector } from '../mock/sectors';
 
 export function Sectors() {
@@ -14,12 +14,25 @@ export function Sectors() {
     Promise.all([fetchSectors(), fetchTickersWithData()]).then(([allSectors, tickersWithData]) => {
       if (tickersWithData != null && tickersWithData.length > 0) {
         const set = new Set(tickersWithData.map((t) => t.toUpperCase()));
+        const apiOnly = tickersWithData.filter((t) => !getStockByTicker(t));
+        const inMap = apiOnly.filter((t) => EXTRA_TICKER_SECTORS[t.toUpperCase()]);
+        const ordered = [...inMap].sort((a, b) => {
+          const i = EXTRA_TICKERS_ORDER.indexOf(a.toUpperCase());
+          const j = EXTRA_TICKERS_ORDER.indexOf(b.toUpperCase());
+          if (i < 0 && j < 0) return 0;
+          if (i < 0) return 1;
+          if (j < 0) return -1;
+          return i - j;
+        });
+        const cappedExtra = ordered.slice(0, EXTRA_TICKERS_CAP);
         const filtered: Sector[] = [];
         for (const sector of allSectors) {
-          const stocks = MOCK_STOCKS_BY_SECTOR[sector.id] ?? [];
-          const withData = stocks.filter((s) => set.has(s.ticker.toUpperCase()));
-          if (withData.length > 0) {
-            filtered.push({ ...sector, stockCount: withData.length });
+          const mockStocks = MOCK_STOCKS_BY_SECTOR[sector.id] ?? [];
+          const withData = mockStocks.filter((s) => set.has(s.ticker.toUpperCase()));
+          const extraInSector = cappedExtra.filter((t) => (EXTRA_TICKER_SECTORS[t.toUpperCase()] ?? '') === sector.id);
+          const total = withData.length + extraInSector.length;
+          if (total > 0) {
+            filtered.push({ ...sector, stockCount: total });
           }
         }
         setSectors(filtered);

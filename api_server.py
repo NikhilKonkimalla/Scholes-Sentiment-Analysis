@@ -1,6 +1,7 @@
 """
-Flask API server: options from output_multi_ticker.csv, stock history/quote from yfinance.
+Flask API server: options from data.csv (or output_multi_ticker.csv), stock history/quote from yfinance.
 Run: python api_server.py   (default: http://localhost:5000)
+Set CSV_PATH below to use data.csv or output_multi_ticker.csv.
 """
 import csv
 import logging
@@ -44,7 +45,7 @@ def _score_to_confidence(score: float) -> int:
 
 
 def load_csv() -> None:
-    """Load output_multi_ticker.csv and index by ticker."""
+    """Load CSV (data.csv or output_multi_ticker.csv) and index by ticker."""
     global _options_by_ticker
     _options_by_ticker = {}
     if not os.path.isfile(CSV_PATH):
@@ -74,7 +75,7 @@ def _float_or(val, default: float = 0) -> float:
 @app.route("/api/stocks/<ticker>/options", methods=["GET"])
 def get_stock_options(ticker: str):
     """
-    Return options for the ticker from output_multi_ticker.csv.
+    Return options for the ticker from the loaded CSV (data.csv).
     Each option: ticker, type, expiration, contractSymbol, strike, price, bid,
     midPrice, score, impliedVolatility, confidence (derived from score).
     """
@@ -114,7 +115,7 @@ def get_stock_options(ticker: str):
 
 @app.route("/api/tickers", methods=["GET"])
 def get_tickers():
-    """Return list of tickers we have options data for (from output_multi_ticker.csv)."""
+    """Return list of tickers we have options data for (from the loaded CSV)."""
     return jsonify({"tickers": sorted(_options_by_ticker.keys())})
 
 

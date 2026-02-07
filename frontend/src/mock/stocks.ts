@@ -76,6 +76,23 @@ export const MOCK_STOCKS_BY_SECTOR: Record<string, Stock[]> = {
   ],
 };
 
+/** Up to 20 extra tickers (from API, not in mock) mapped to existing sectors. Order = priority for capping. */
+export const EXTRA_TICKERS_CAP = 20;
+export const EXTRA_TICKER_SECTORS: Record<string, string> = {
+  AMD: 'technology', INTC: 'technology', QCOM: 'technology', ORCL: 'technology', ADBE: 'technology',
+  ABBV: 'health', GILD: 'health', AMGN: 'health',
+  GS: 'finance', MS: 'finance', AXP: 'finance',
+  NKE: 'consumer', SBUX: 'consumer', MCD: 'consumer',
+  GE: 'industrials', HON: 'industrials', UPS: 'industrials',
+  FCX: 'materials', AA: 'materials',
+  DUK: 'utilities',
+  COP: 'energy', SLB: 'energy',
+};
+export const EXTRA_TICKERS_ORDER: string[] = [
+  'AMD', 'INTC', 'QCOM', 'ORCL', 'ADBE', 'ABBV', 'GILD', 'AMGN', 'GS', 'MS', 'AXP',
+  'NKE', 'SBUX', 'MCD', 'GE', 'HON', 'UPS', 'FCX', 'AA', 'DUK', 'COP', 'SLB',
+];
+
 // Flatten for lookup by ticker
 export function getStockByTicker(ticker: string): Stock | undefined {
   const upper = ticker.toUpperCase();
