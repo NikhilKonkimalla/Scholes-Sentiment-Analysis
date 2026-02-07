@@ -126,29 +126,36 @@ def fetch_headlines(
     )
 
 
-def _score_finbert(headlines: list[dict]) -> list[float]:
-    """Score each headline with FinBERT; return list of scores in [-1, 1]."""
+def _score_finbert(headlines: list[dict], batch_size: int = 32) -> list[float]:
+    """Score each headline with FinBERT; return list of scores in [-1, 1]. Batched for speed."""
     pipe = _get_finbert()
     if pipe is None:
         return []
-    scores = []
-    for h in headlines:
-        title = (h.get("title") or "").strip()
-        if not title:
-            scores.append(0.0)
+    titles = [(h.get("title") or "").strip()[:512] for h in headlines]
+    scores = [0.0] * len(headlines)
+    # Process in batches for ~10x speedup
+    for i in range(0, len(titles), batch_size):
+        batch = titles[i : i + batch_size]
+        valid_idx = [j for j, t in enumerate(batch) if t]
+        if not valid_idx:
             continue
+        valid_titles = [batch[j] for j in valid_idx]
         try:
-            result = pipe(title[:512])[0]
-            label = (result.get("label") or "").lower()
-            conf = float(result.get("score", 0.5))
-            if label == "positive":
-                scores.append(conf)
-            elif label == "negative":
-                scores.append(-conf)
-            else:
-                scores.append(0.0)
+            results = pipe(valid_titles, batch_size=min(batch_size, len(valid_titles)), truncation=True)
+            if not isinstance(results, list):
+                results = [results]
+            for k, res in enumerate(results):
+                if k >= len(valid_idx):
+                    break
+                head_idx = i + valid_idx[k]
+                label = (res.get("label") or "").lower()
+                conf = float(res.get("score", 0.5))
+                if label == "positive":
+                    scores[head_idx] = conf
+                elif label == "negative":
+                    scores[head_idx] = -conf
         except Exception:
-            scores.append(0.0)
+            pass
     return scores
 
 
