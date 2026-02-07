@@ -1,6 +1,6 @@
 # Scholes Analysis Pipeline
 
-Backend-only Python pipeline that combines live underlying + options data (yfinance), Black-Scholes theoretical pricing, news sentiment (NewsAPI.ai + FinBERT / VADER), and an opportunity score blending mispricing and sentiment.
+Python pipeline that combines live underlying + options data (yfinance), Black-Scholes theoretical pricing, news sentiment (NewsAPI.ai + FinBERT / VADER), and an opportunity score blending mispricing and sentiment.
 
 ## Setup
 
