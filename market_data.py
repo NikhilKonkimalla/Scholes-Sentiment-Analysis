@@ -1,6 +1,7 @@
 """
 Market data module: spot price and options chain via yfinance.
 """
+import time
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 import logging
@@ -16,13 +17,35 @@ logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
 UTC = timezone.utc
 
+# Retry config for Yahoo rate limits
+_MAX_RETRIES = 3
+_INITIAL_BACKOFF = 2.0
+
+
+def _retry_on_rate_limit(func, *args, **kwargs):
+    """Call func with retry and exponential backoff on YFRateLimitError."""
+    backoff = _INITIAL_BACKOFF
+    for attempt in range(_MAX_RETRIES):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            if "YFRateLimitError" in type(e).__name__ or "rate limit" in str(e).lower():
+                if attempt < _MAX_RETRIES - 1:
+                    logger.warning("Rate limited, retry %d/%d in %.1fs", attempt + 1, _MAX_RETRIES, backoff)
+                    time.sleep(backoff)
+                    backoff *= 2
+                else:
+                    raise
+            else:
+                raise
+
 
 def get_spot(ticker: str) -> float:
     """
     Fetch last close price for the underlying using yfinance.
     Returns last close as float; NaN on failure.
     """
-    try:
+    def _fetch():
         t = yf.Ticker(ticker)
         hist = t.history(period="1d")
         if hist is None or hist.empty:
@@ -30,6 +53,9 @@ def get_spot(ticker: str) -> float:
             return float("nan")
         close = hist["Close"].iloc[-1]
         return float(close)
+
+    try:
+        return _retry_on_rate_limit(_fetch)
     except Exception as e:
         logger.exception("get_spot failed for %s: %s", ticker, e)
         return float("nan")
@@ -60,17 +86,22 @@ def get_options_chain(ticker: str, max_expirations: int = 6) -> pd.DataFrame:
     Fetch options chain for ticker for up to max_expirations expirations.
     Returns a DataFrame with standardized columns and computed mid_price, spread, time_to_expiry_years.
     """
-    try:
+    def _fetch_chain():
         t = yf.Ticker(ticker)
         expirations = t.options
         if not expirations:
             logger.warning("No expirations for %s", ticker)
+            return None, []
+        return t, expirations[:max_expirations]
+
+    try:
+        result = _retry_on_rate_limit(_fetch_chain)
+        if result is None or result[0] is None:
             return pd.DataFrame()
+        t, expirations = result
     except Exception as e:
         logger.exception("Failed to get options for %s: %s", ticker, e)
         return pd.DataFrame()
-
-    expirations = expirations[:max_expirations]
     now_utc = datetime.now(UTC)
     SECONDS_PER_YEAR = 365 * 24 * 3600
     rows: list[pd.DataFrame] = []

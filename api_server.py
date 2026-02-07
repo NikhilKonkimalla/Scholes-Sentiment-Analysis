@@ -17,7 +17,7 @@ app = Flask(__name__)
 CORS(app, origins=["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"])
 
 # Path to multi-ticker output CSV (project root)
-CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output_multi_ticker.csv")
+CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.csv")
 
 # In-memory cache: ticker -> list of row dicts
 _options_by_ticker: dict[str, list[dict]] = {}

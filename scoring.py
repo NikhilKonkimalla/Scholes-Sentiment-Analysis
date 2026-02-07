@@ -60,11 +60,17 @@ def compute_scores(
     df["spread_penalty"] = df["spread_penalty"].fillna(5)  # treat NaN spread as max penalty
 
     # alignment: sign(sentiment_mean) * (+1 for calls, -1 for puts)
+    # When sentiment is neutral (~0), use mispricing direction: underpriced = opportunity
     call_put_sign = np.where(df["option_type"] == "call", 1, -1)
-    sentiment_sign = np.sign(sentiment_mean) if sentiment_mean != 0 else 0
-    df["alignment"] = sentiment_sign * call_put_sign
+    if abs(sentiment_mean) >= 0.01:
+        sentiment_sign = np.sign(sentiment_mean)
+        df["alignment"] = sentiment_sign * call_put_sign
+    else:
+        # Neutral sentiment: underpriced options (mid < theo) = buy opportunity => positive alignment
+        gap = np.nan_to_num(df["pricing_gap"].values, nan=0.0)
+        df["alignment"] = np.sign(-gap).astype(float)
 
-    # opportunity_score_raw
+    # opportunity_score_raw = alignment * abs_gap_pct * liq_factor * spread_factor
     abs_gap_pct = np.abs(df["pricing_gap_pct"])
     liq_factor = 1 + 0.25 * df["liquidity_score"]
     spread_factor = np.exp(-df["spread_penalty"])

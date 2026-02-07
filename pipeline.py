@@ -1,10 +1,20 @@
 """
 CLI entrypoint: fetch market data + news sentiment, compute BS and opportunity scores, output CSV/JSON.
+
+Single ticker:
+  python pipeline.py --ticker SPY --headlines_csv newsapi_headlines.csv
+  python pipeline.py --ticker AAPL
+
+Multi-ticker (combines into output_multi_ticker.csv):
+  python pipeline.py --headlines_csv newsapi_headlines.csv --tickers-from-headlines --output output_multi_ticker.csv
+  python pipeline.py --headlines_csv newsapi_headlines.csv --tickers AAPL,MSFT,NVDA --output output_multi_ticker.csv
 """
 import argparse
+import csv
 import json
 import logging
 import os
+import re
 import sys
 
 import numpy as np
@@ -22,6 +32,33 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# For --tickers-from-headlines: use same set as pipeline_multi_ticker
+try:
+    from pipeline_multi_ticker import KNOWN_TICKERS
+except ImportError:
+    KNOWN_TICKERS = frozenset([
+        "SPY", "QQQ", "IWM", "DIA", "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA",
+        "JNJ", "UNH", "PFE", "JPM", "BAC", "WMT", "PG", "KO", "XOM", "CVX", "GE", "LMT", "RTX",
+    ])
+
+
+def _extract_tickers_from_headlines_csv(csv_path: str) -> list[str]:
+    """Extract unique tickers from headlines CSV query column."""
+    tickers = set()
+    try:
+        with open(csv_path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                q = (row.get("query") or "").strip()
+                if not q:
+                    continue
+                tokens = re.findall(r"\b([A-Z]{2,5})\b", q.upper())
+                tickers.update(t for t in tokens if t in KNOWN_TICKERS)
+    except Exception as e:
+        logger.warning("Could not extract tickers from headlines: %s", e)
+        return []
+    return sorted(tickers)
+
 
 def _serialize_for_json(obj: object) -> object:
     """Convert datetime and other non-JSON-serializable types."""
@@ -32,6 +69,137 @@ def _serialize_for_json(obj: object) -> object:
             return None
         return obj
     raise TypeError(type(obj))
+
+
+def _run_multi_ticker(args) -> int:
+    """Multi-ticker flow: headlines CSV -> per-ticker sentiment -> options -> combined output."""
+    if not args.headlines_csv.strip():
+        logger.error("Multi-ticker requires --headlines_csv")
+        return 1
+
+    headlines = []
+    try:
+        with open(args.headlines_csv, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                headlines.append({
+                    "title": row.get("title", ""),
+                    "source": row.get("source", ""),
+                    "publishedAt": row.get("publishedAt", ""),
+                    "url": row.get("url", ""),
+                    "query": (row.get("query") or "").strip(),
+                })
+    except Exception as e:
+        logger.exception("Failed to load headlines: %s", e)
+        return 1
+
+    if not headlines:
+        logger.error("No headlines loaded")
+        return 1
+
+    # Sample for speed
+    if len(headlines) > 500:
+        import random
+        by_query: dict[str, list] = {}
+        for h in headlines:
+            q = h.get("query", "") or "_"
+            by_query.setdefault(q, []).append(h)
+        sampled = []
+        per_q = max(1, 500 // max(1, len(by_query)))
+        for group in by_query.values():
+            sampled.extend(random.sample(group, min(per_q, len(group))))
+        random.shuffle(sampled)
+        headlines = sampled[:500]
+        logger.info("Sampled 500 headlines from %d query groups", len(by_query))
+
+    if args.tickers_from_headlines:
+        tickers = _extract_tickers_from_headlines_csv(args.headlines_csv)
+        if not tickers:
+            logger.error("No tickers extracted from headlines")
+            return 1
+        logger.info("Extracted %d tickers from headlines", len(tickers))
+    else:
+        tickers = [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
+
+    sentiment_result = score_headlines(headlines, model_preference=args.model)
+    global_sentiment = sentiment_result.get("sentiment_mean", 0.0)
+    headline_scores = sentiment_result.get("headline_scores", [])
+
+    def _ticker_in_query(ticker: str, query: str) -> bool:
+        if not query:
+            return False
+        words = set(re.findall(r"[A-Z0-9.]+", query.upper()))
+        return ticker.upper() in words
+
+    ticker_sentiment_map: dict[str, float] = {}
+    if headline_scores and len(headline_scores) == len(headlines):
+        for t in tickers:
+            scores = [hs.get("score", 0.0) for h, hs in zip(headlines, headline_scores)
+                      if _ticker_in_query(t, h.get("query", ""))]
+            if scores:
+                ticker_sentiment_map[t] = float(np.mean(scores))
+
+    all_rows = []
+    for ticker in tickers:
+        try:
+            spot = get_spot(ticker)
+            if spot != spot or spot <= 0:
+                logger.warning("No spot for %s, skipping", ticker)
+                continue
+            options_df = get_options_chain(ticker, max_expirations=min(args.expirations, 3))
+            if options_df is None or options_df.empty:
+                logger.warning("No options for %s, skipping", ticker)
+                continue
+            sentiment_mean = ticker_sentiment_map.get(ticker, global_sentiment)
+            if not args.no_rss:
+                try:
+                    rss_sent = get_ticker_sentiment(ticker, hours=args.rss_hours) or get_rolling_sentiment(args.rss_hours)
+                    if rss_sent is not None:
+                        w = max(0.0, min(1.0, args.rss_weight))
+                        sentiment_mean = (1 - w) * sentiment_mean + w * rss_sent
+                except ImportError:
+                    pass
+            scored_df = compute_scores(options_df, spot, args.r, sentiment_mean)
+            if "opportunity_score" not in scored_df.columns:
+                continue
+            top = (
+                scored_df.assign(_abs=np.abs(scored_df["opportunity_score"]))
+                .nlargest(args.top_per_ticker, "_abs")
+                .drop(columns=["_abs"], errors="ignore")
+            )
+            for _, row in top.iterrows():
+                exp = row.get("expiration")
+                if hasattr(exp, "isoformat"):
+                    exp = exp.isoformat()
+                raw_score = row.get("opportunity_score")
+                try:
+                    score_val = float(raw_score) if raw_score is not None else 0.0
+                except (TypeError, ValueError):
+                    score_val = 0.0
+                if score_val != score_val:
+                    score_val = 0.0
+                all_rows.append({
+                    "ticker": ticker,
+                    "expiration": str(exp) if exp is not None else "",
+                    "contractSymbol": str(row.get("contractSymbol", "")),
+                    "strike": row.get("strike", ""),
+                    "price": row.get("lastPrice", ""),
+                    "bid": row.get("bid", ""),
+                    "midPrice": row.get("mid_price", ""),
+                    "score": round(score_val, 4),
+                    "impliedVolatility": row.get("impliedVolatility", ""),
+                })
+            logger.info("%s: %d options", ticker, len(top))
+        except Exception as e:
+            logger.warning("%s failed: %s", ticker, e)
+
+    out_cols = ["ticker", "expiration", "contractSymbol", "strike", "price", "bid", "midPrice", "score", "impliedVolatility"]
+    with open(args.output, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=out_cols, extrasaction="ignore")
+        w.writeheader()
+        w.writerows(all_rows)
+    logger.info("Wrote %s (%d rows, %d tickers)", args.output, len(all_rows), len(set(r["ticker"] for r in all_rows)))
+    return 0
 
 
 def main() -> int:
@@ -53,7 +221,15 @@ def main() -> int:
     parser.add_argument("--rss-weight", type=float, default=0.25, help="Weight for RSS/social sentiment (0-1); rest is news (default 0.25)")
     parser.add_argument("--rss-hours", type=int, default=24, help="RSS sentiment rolling window in hours (default 24)")
     parser.add_argument("--no-rss", action="store_true", help="Disable RSS/social sentiment (use news only)")
+    parser.add_argument("--tickers", type=str, default="", help="Multi-ticker: comma-separated list (e.g. AAPL,MSFT,NVDA)")
+    parser.add_argument("--tickers-from-headlines", action="store_true", help="Multi-ticker: extract tickers from headlines CSV query column")
+    parser.add_argument("--output", type=str, default="output_multi_ticker.csv", help="Output path for multi-ticker combined CSV")
+    parser.add_argument("--top-per-ticker", type=int, default=25, help="Top N options per ticker in multi-ticker mode")
     args = parser.parse_args()
+
+    # Multi-ticker mode
+    if args.tickers_from_headlines or args.tickers.strip():
+        return _run_multi_ticker(args)
 
     ticker = args.ticker.strip().upper()
     if not ticker:
