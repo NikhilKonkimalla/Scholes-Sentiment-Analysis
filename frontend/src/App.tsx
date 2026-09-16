@@ -5,9 +5,13 @@ import { Sectors } from './pages/Sectors';
 import { SectorDetail } from './pages/SectorDetail';
 import { StockDetail } from './pages/StockDetail';
 
+// Deploys under a sub-path (e.g. GitHub Pages serves /<repo>/), so routes must be
+// resolved against Vite's base URL rather than the domain root.
+const basename = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
+
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={basename}>
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Home />} />

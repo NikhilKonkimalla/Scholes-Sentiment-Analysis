@@ -184,9 +184,10 @@ export function Home() {
 
               {options === null ? (
                 <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-6 text-center text-sm text-amber-200">
-                  No options data available — the API server is not reachable.
+                  No options data could be loaded.
                   <div className="mt-1 text-xs text-amber-200/70">
-                    Start it with <code className="rounded bg-zinc-800 px-1">python api_server.py</code>.
+                    Running locally? Start the backend with{' '}
+                    <code className="rounded bg-zinc-800 px-1">python api_server.py</code>.
                   </div>
                 </div>
               ) : (

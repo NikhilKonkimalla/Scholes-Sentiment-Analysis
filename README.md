@@ -193,6 +193,35 @@ The frontend shows **options with confidence/suggestions** from a pre-built mult
    Left unset, a production build calls the same origin it is served from (so a host that
    proxies `/api` to the backend works as-is).
 
+## Hosting (GitHub Pages, no backend)
+
+The public site is fully static. `export_static_data.py` writes every API response the
+frontend needs to `frontend/public/data/` as JSON, and a frontend built with
+`VITE_DATA_MODE=static` reads those files instead of calling `api_server.py`.
+
+`.github/workflows/refresh-and-deploy.yml` rebuilds and deploys it:
+
+- **Five times per US trading day** it re-runs `pipeline_multi_ticker.py` for fresh options
+  data. If Yahoo rate-limits the run and fewer than 80% of tickers come back, it keeps the
+  committed `data.csv` rather than publishing a thinner site.
+- On **every push to `main`** it redeploys using the committed snapshot.
+- It can be run **manually** from the Actions tab.
+
+One-time setup: push to GitHub, then in the repository go to
+**Settings → Pages → Build and deployment → Source: GitHub Actions**. Scheduled runs only
+fire from the default branch. The site is served at
+`https://<owner>.github.io/<repo>/`; for a custom domain, set the repository variable
+`SITE_BASE=/`.
+
+To preview the static build locally:
+
+```bash
+python export_static_data.py            # add --skip-live to avoid Yahoo calls
+cd frontend
+VITE_DATA_MODE=static npm run build -- --base=/Scholes-Sentiment-Analysis/
+npx vite preview --base=/Scholes-Sentiment-Analysis/
+```
+
 ## Outputs
 
 - **CSV**: `output_{ticker}.csv` — full options chain with theoretical price, pricing gap, liquidity, spread penalty, alignment, opportunity score, and risk flag.

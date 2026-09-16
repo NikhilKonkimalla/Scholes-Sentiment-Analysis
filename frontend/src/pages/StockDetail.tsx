@@ -228,7 +228,7 @@ export function StockDetail() {
                 <div className="flex h-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-zinc-700 text-center">
                   <p className="text-sm text-zinc-400">Price history unavailable</p>
                   <p className="text-xs text-zinc-500">
-                    The API server is not reachable, so there is no market data to chart.
+                    No price history is available for this ticker right now.
                   </p>
                 </div>
               ) : chartFormat === 'line' ? (
@@ -435,6 +435,11 @@ export function StockDetail() {
                 })}
               </tbody>
             </table>
+            {options.length === 0 && (
+              <p className="px-3 py-4 text-center text-sm text-zinc-500">
+                No unexpired contracts for this ticker in the current data snapshot.
+              </p>
+            )}
           </div>
         )}
       </Card>
