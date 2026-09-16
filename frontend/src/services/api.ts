@@ -1,19 +1,31 @@
 /**
- * API service. Options come from backend (output_multi_ticker.csv) when the API
- * server is running; otherwise mock data is used. Sectors, stocks, prices, OHLC,
- * and ai-summary remain mock for now.
+ * API service. Options, quotes, price history and per-ticker news sentiment all come
+ * from the backend when it is reachable. Sectors and the sector -> stock mapping are
+ * still static.
+ *
+ * Where a fallback exists it is tagged (e.g. `source: 'mock'`) so the UI can label it.
+ * Price history has NO fallback on purpose: it used to return a `Math.random()` walk
+ * that rendered as a plausible-looking chart with nothing marking it as fake, which is
+ * worse than showing no chart at all. Unavailable now means an empty series.
  */
 
 import type { Sector } from '../mock/sectors';
 import type { Stock, PricePoint, StockOption, OHLCPoint } from '../mock/stocks';
 import type { AiEvaluation } from '../mock/aiEvaluations';
 import { MOCK_SECTORS } from '../mock/sectors';
-import { MOCK_STOCKS_BY_SECTOR, getStockByTicker, getTickerFullName, generateMockPrices, generateMockOHLC, getOptionsForTicker, EXTRA_TICKERS_CAP, EXTRA_TICKER_SECTORS, EXTRA_TICKERS_ORDER } from '../mock/stocks';
+import { MOCK_STOCKS_BY_SECTOR, getStockByTicker, getTickerFullName, getOptionsForTicker, EXTRA_TICKERS_CAP, EXTRA_TICKER_SECTORS, EXTRA_TICKERS_ORDER } from '../mock/stocks';
 import { getAiEvaluation } from '../mock/aiEvaluations';
 
-const API_BASE =
-  (typeof import.meta !== 'undefined' && (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL) ||
-  'http://localhost:5000';
+/**
+ * API base URL. Set VITE_API_URL at build time to point at a deployed backend.
+ * Falls back to the local Flask server during `vite dev`, and to same-origin in a
+ * production build so a host that proxies /api to the backend works unchanged.
+ */
+const viteEnv =
+  (typeof import.meta !== 'undefined'
+    ? (import.meta as { env?: { VITE_API_URL?: string; DEV?: boolean } }).env
+    : undefined) ?? {};
+const API_BASE = viteEnv.VITE_API_URL || (viteEnv.DEV ? 'http://localhost:5000' : '');
 const MOCK_DELAY_MS = 400;
 
 function delay(ms: number = MOCK_DELAY_MS): Promise<void> {
@@ -36,10 +48,48 @@ export async function checkBackendHealth(): Promise<boolean> {
   return data != null && data.status === 'ok';
 }
 
-/** Tickers we have options data for (from output_multi_ticker.csv). Null if backend unavailable. */
+export interface BackendStatus {
+  ok: boolean;
+  /** ISO timestamp of when the options snapshot was generated. */
+  dataAsOf?: string | null;
+  tickersLoaded?: number;
+  optionsLive?: number;
+}
+
+/** Backend status including the snapshot date, for the footer. */
+export async function fetchBackendStatus(): Promise<BackendStatus> {
+  const data = await get<{
+    status?: string;
+    dataAsOf?: string | null;
+    tickers_loaded?: number;
+    options_live?: number;
+  }>('/api/health');
+  if (data?.status !== 'ok') return { ok: false };
+  return {
+    ok: true,
+    dataAsOf: data.dataAsOf ?? null,
+    tickersLoaded: data.tickers_loaded,
+    optionsLive: data.options_live,
+  };
+}
+
+/** Tickers we have options data for. Null if backend unavailable. */
 export async function fetchTickersWithData(): Promise<string[] | null> {
   const data = await get<{ tickers?: string[] }>('/api/tickers');
   if (data?.tickers?.length) return data.tickers;
+  return null;
+}
+
+/**
+ * Highest-conviction options across every ticker, ranked by |score|.
+ * Returns null when the backend is unreachable — the caller shows an empty state
+ * rather than inventing rows.
+ */
+export async function fetchTopOptions(limit: number = 25): Promise<StockOption[] | null> {
+  const data = await get<{ options?: StockOption[] }>(
+    `/api/options/top?limit=${encodeURIComponent(String(limit))}`
+  );
+  if (data?.options) return data.options;
   return null;
 }
 
@@ -50,7 +100,7 @@ export async function fetchSectors(): Promise<Sector[]> {
 
 /**
  * Stocks in a sector. If tickersWithData is provided (from backend), returns mock stocks
- * with data plus up to EXTRA_TICKERS_CAP extra tickers assigned to this sector (from API, not in mock).
+ * with data plus up to EXTRA_TICKERS_CAP extra tickers assigned to this sector.
  */
 export async function fetchSectorStocks(
   sectorId: string,
@@ -61,7 +111,6 @@ export async function fetchSectorStocks(
   if (tickersWithData != null && tickersWithData.length > 0) {
     const set = new Set(tickersWithData.map((t) => t.toUpperCase()));
     stocks = stocks.filter((s) => set.has(s.ticker.toUpperCase()));
-    // Add extra tickers assigned to this sector (cap 20 total across all sectors)
     const apiOnly = tickersWithData.filter((t) => !getStockByTicker(t));
     const inMap = apiOnly.filter((t) => EXTRA_TICKER_SECTORS[t.toUpperCase()]);
     const ordered = [...inMap].sort((a, b) => {
@@ -79,6 +128,7 @@ export async function fetchSectorStocks(
         ticker: t.toUpperCase(),
         name: getTickerFullName(t),
         sectorId,
+        // 0 means "price unavailable" — the UI renders an em dash, not $0.00.
         currentPrice: 0,
         dayChangePercent: 0,
       });
@@ -96,35 +146,68 @@ function rangeToPeriod(range: string): string {
   return '1mo';
 }
 
-/** Historical prices (close) and OHLC from backend (Yahoo Finance). Falls back to mock if API unavailable. */
+/**
+ * Historical closes from the backend (Yahoo Finance).
+ * Returns an empty array when unavailable — never synthetic prices.
+ */
 export async function fetchStockPrices(ticker: string, range: string = '1m'): Promise<PricePoint[]> {
   const period = rangeToPeriod(range);
   const data = await get<{ prices: { date: string; price: number }[] }>(
     `/api/stocks/${encodeURIComponent(ticker)}/history?period=${encodeURIComponent(period)}`
   );
-  if (data?.prices?.length) return data.prices;
-  const stock = getStockByTicker(ticker);
-  const base = stock?.currentPrice ?? 100;
-  await delay();
-  return Promise.resolve(generateMockPrices(ticker, base));
+  return data?.prices ?? [];
 }
 
+/** Historical OHLC from the backend. Empty array when unavailable — never synthetic. */
 export async function fetchStockOHLC(ticker: string, range: string = '1m'): Promise<OHLCPoint[]> {
   const period = rangeToPeriod(range);
   const data = await get<{ ohlc: OHLCPoint[] }>(
     `/api/stocks/${encodeURIComponent(ticker)}/history?period=${encodeURIComponent(period)}`
   );
-  if (data?.ohlc?.length) return data.ohlc;
-  const stock = getStockByTicker(ticker);
-  const base = stock?.currentPrice ?? 100;
-  await delay();
-  return Promise.resolve(generateMockOHLC(ticker, base));
+  return data?.ohlc ?? [];
 }
 
-/** Per-ticker AI evaluation (summary + related articles). Mock for now; replace with GET /api/stocks/:ticker/ai-summary when available. */
+/**
+ * Per-ticker news sentiment from the backend: real recent headlines scored by
+ * FinBERT (or VADER). Falls back to the placeholder only when the API is
+ * unreachable, tagged `source: 'mock'` so the UI can say so.
+ */
 export async function fetchStockAiEvaluation(ticker: string): Promise<AiEvaluation> {
+  const data = await get<{
+    available?: boolean;
+    reason?: string;
+    summary?: string;
+    sentimentMean?: number | null;
+    sentimentStd?: number | null;
+    headlineCount?: number;
+    positive?: number;
+    negative?: number;
+    neutral?: number;
+    model?: string | null;
+    generatedAt?: string;
+    articles?: { title: string; url: string; source?: string; score?: number }[];
+  }>(`/api/stocks/${encodeURIComponent(ticker)}/ai-summary`);
+
+  if (data && typeof data.available === 'boolean') {
+    return {
+      source: 'live',
+      available: data.available,
+      reason: data.reason ?? '',
+      summary: data.summary ?? '',
+      articles: data.articles ?? [],
+      sentimentMean: data.sentimentMean ?? null,
+      sentimentStd: data.sentimentStd ?? null,
+      headlineCount: data.headlineCount ?? 0,
+      positive: data.positive ?? 0,
+      negative: data.negative ?? 0,
+      neutral: data.neutral ?? 0,
+      model: data.model ?? null,
+      generatedAt: data.generatedAt,
+    };
+  }
+
   await delay();
-  return Promise.resolve(getAiEvaluation(ticker));
+  return { ...getAiEvaluation(ticker), source: 'mock', available: false };
 }
 
 export async function fetchStockOptions(ticker: string): Promise<StockOption[]> {
@@ -134,7 +217,12 @@ export async function fetchStockOptions(ticker: string): Promise<StockOption[]> 
   return Promise.resolve([...getOptionsForTicker(ticker)]);
 }
 
-/** Stock metadata. Uses backend quote (Yahoo) for price/dayChange when API is up; otherwise mock. */
+/**
+ * Stock metadata. Uses the backend quote (Yahoo) for price/dayChange when the API is
+ * up. Without it, the name and sector still come from the static map but the price is
+ * reported as 0 = unavailable, rather than passing a stale hardcoded number off as
+ * the current price.
+ */
 export async function fetchStock(ticker: string): Promise<Stock | null> {
   const quote = await get<{ currentPrice: number; dayChangePercent: number }>(
     `/api/stocks/${encodeURIComponent(ticker)}/quote`
@@ -145,12 +233,19 @@ export async function fetchStock(ticker: string): Promise<Stock | null> {
       ? { ...mock, currentPrice: quote.currentPrice, dayChangePercent: quote.dayChangePercent ?? 0 }
       : {
           ticker: ticker.toUpperCase(),
-          name: ticker,
+          name: getTickerFullName(ticker),
           sectorId: 'technology',
           currentPrice: quote.currentPrice,
           dayChangePercent: quote.dayChangePercent ?? 0,
         };
   }
   await delay();
-  return Promise.resolve(mock ?? null);
+  if (mock) return { ...mock, currentPrice: 0, dayChangePercent: 0 };
+  return {
+    ticker: ticker.toUpperCase(),
+    name: getTickerFullName(ticker),
+    sectorId: 'technology',
+    currentPrice: 0,
+    dayChangePercent: 0,
+  };
 }

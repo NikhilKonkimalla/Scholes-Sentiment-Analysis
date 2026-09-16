@@ -27,6 +27,32 @@ import { MOCK_SECTORS } from '../mock/sectors';
 import type { Stock, PricePoint, StockOption, OHLCPoint } from '../mock/stocks';
 import type { AiEvaluation } from '../mock/aiEvaluations';
 
+/**
+ * Human-readable explanation for a risk-flagged contract, used as the badge tooltip.
+ * Mirrors the conditions in scoring.py: wide spread, thin liquidity, or a theoretical
+ * price too close to zero to derive a meaningful mispricing from.
+ */
+function riskReason(opt: StockOption): string {
+  const reasons: string[] = [];
+  if (opt.volume != null && opt.openInterest != null && opt.volume + opt.openInterest < 10) {
+    reasons.push(`thin liquidity (volume ${opt.volume}, open interest ${opt.openInterest})`);
+  }
+  // A missing quote is not a wide quote. scoring.py charges both the maximum spread
+  // penalty (5.0), so reporting "500% of mid" for a contract nobody is quoting would
+  // be plainly false — distinguish the two.
+  if (opt.ask != null && (opt.bid <= 0 || opt.ask <= 0)) {
+    reasons.push('no bid/ask quote available');
+  } else if (opt.spreadPenalty != null && opt.spreadPenalty > 1) {
+    reasons.push(`wide bid/ask spread (${Math.round(opt.spreadPenalty * 100)}% of mid)`);
+  }
+  if (opt.theoPrice != null && opt.theoPrice < 0.05) {
+    reasons.push('no usable theoretical price');
+  }
+  return reasons.length
+    ? `Flagged: ${reasons.join('; ')}`
+    : 'Flagged: wide spread, thin liquidity, or no usable theoretical price';
+}
+
 export function StockDetail() {
   const { ticker } = useParams<{ ticker: string }>();
   const navigate = useNavigate();
@@ -144,10 +170,21 @@ export function StockDetail() {
           {stock && (
             <>
               {sector && <Badge variant="neutral">{sector.name}</Badge>}
-              <span className="text-zinc-300">${Number(stock.currentPrice ?? 0).toFixed(2)}</span>
-              <Badge variant={(stock.dayChangePercent ?? 0) >= 0 ? 'green' : 'red'}>
-                {(stock.dayChangePercent ?? 0) >= 0 ? '+' : ''}{Number(stock.dayChangePercent ?? 0).toFixed(2)}%
-              </Badge>
+              {Number(stock.currentPrice ?? 0) > 0 ? (
+                <>
+                  <span className="text-zinc-300">${Number(stock.currentPrice).toFixed(2)}</span>
+                  <Badge variant={(stock.dayChangePercent ?? 0) >= 0 ? 'green' : 'red'}>
+                    {(stock.dayChangePercent ?? 0) >= 0 ? '+' : ''}
+                    {Number(stock.dayChangePercent ?? 0).toFixed(2)}%
+                  </Badge>
+                </>
+              ) : (
+                /* 0 means the quote endpoint was unreachable. Showing "$0.00" would
+                   read as a real price, so say plainly that we do not have one. */
+                <span className="text-sm text-zinc-500" title="Live quote unavailable">
+                  price unavailable
+                </span>
+              )}
             </>
           )}
         </div>
@@ -187,7 +224,14 @@ export function StockDetail() {
               </button>
             </div>
             <div className="h-56">
-              {chartFormat === 'line' ? (
+              {!prices?.length ? (
+                <div className="flex h-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-zinc-700 text-center">
+                  <p className="text-sm text-zinc-400">Price history unavailable</p>
+                  <p className="text-xs text-zinc-500">
+                    The API server is not reachable, so there is no market data to chart.
+                  </p>
+                </div>
+              ) : chartFormat === 'line' ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={prices ?? []} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
@@ -226,23 +270,75 @@ export function StockDetail() {
             </div>
           </Card>
 
-          <Card title="Evaluation">
+          <Card title="News Sentiment">
             <div className="space-y-3">
-              <p className="text-sm text-zinc-300 leading-relaxed">{aiEvaluation?.summary ?? '—'}</p>
+              {aiEvaluation?.source === 'mock' && (
+                <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                  Live sentiment unavailable — the API server is not reachable. Nothing
+                  shown here is an analysis of this stock.
+                </div>
+              )}
+              {aiEvaluation?.source === 'live' && aiEvaluation.available === false && (
+                <div className="rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-xs text-zinc-400">
+                  {aiEvaluation.reason || 'No recent headlines found for this ticker.'}
+                </div>
+              )}
+
+              {aiEvaluation?.summary ? (
+                <p className="text-sm text-zinc-300 leading-relaxed">{aiEvaluation.summary}</p>
+              ) : null}
+
+              {aiEvaluation?.source === 'live' && aiEvaluation.available && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={(aiEvaluation.sentimentMean ?? 0) >= 0 ? 'green' : 'red'}>
+                    mean {(aiEvaluation.sentimentMean ?? 0) >= 0 ? '+' : ''}
+                    {Number(aiEvaluation.sentimentMean ?? 0).toFixed(2)}
+                  </Badge>
+                  <Badge variant="green">{aiEvaluation.positive ?? 0} positive</Badge>
+                  <Badge variant="red">{aiEvaluation.negative ?? 0} negative</Badge>
+                  <Badge variant="neutral">{aiEvaluation.neutral ?? 0} neutral</Badge>
+                  {aiEvaluation.model && (
+                    <span className="text-xs text-zinc-500">
+                      scored by {aiEvaluation.model.toUpperCase()}
+                    </span>
+                  )}
+                </div>
+              )}
+
               {aiEvaluation?.articles?.length ? (
                 <div className="border-t border-zinc-800 pt-3">
-                  <p className="text-xs font-medium text-zinc-400 mb-2">Related articles</p>
+                  <p className="text-xs font-medium text-zinc-400 mb-2">
+                    {aiEvaluation.source === 'live' ? 'Headlines scored' : 'Related articles'}
+                  </p>
                   <ul className="space-y-1.5">
-                    {(aiEvaluation?.articles ?? []).map((a, i) => (
-                      <li key={i}>
-                        <a
-                          href={a.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-emerald-400 hover:text-emerald-300 hover:underline"
-                        >
-                          {a.title}
-                        </a>
+                    {aiEvaluation.articles.map((a, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        {typeof a.score === 'number' && (
+                          <span
+                            className={`mt-0.5 shrink-0 font-mono text-xs ${
+                              a.score > 0.05
+                                ? 'text-emerald-400'
+                                : a.score < -0.05
+                                ? 'text-rose-400'
+                                : 'text-zinc-500'
+                            }`}
+                          >
+                            {a.score >= 0 ? '+' : ''}
+                            {a.score.toFixed(2)}
+                          </span>
+                        )}
+                        {a.url ? (
+                          <a
+                            href={a.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-emerald-400 hover:text-emerald-300 hover:underline"
+                          >
+                            {a.title}
+                          </a>
+                        ) : (
+                          <span className="text-sm text-zinc-300">{a.title}</span>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -320,11 +416,18 @@ export function StockDetail() {
                       <td className="px-3 py-2 text-zinc-300">${Number(opt.bid ?? 0).toFixed(2)}</td>
                       <td className="px-3 py-2 text-zinc-300">${Number(mid).toFixed(2)}</td>
                       <td className="px-3 py-2">
-                        <span title={conf >= 60 ? 'Recommended to buy' : conf >= 40 ? 'Neutral' : 'Not recommended'}>
-                          <Badge variant={conf >= 60 ? 'green' : conf >= 40 ? 'yellow' : 'red'}>
-                            {recommendation} ({conf})
-                          </Badge>
-                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span title={conf >= 60 ? 'Recommended to buy' : conf >= 40 ? 'Neutral' : 'Not recommended'}>
+                            <Badge variant={conf >= 60 ? 'green' : conf >= 40 ? 'yellow' : 'red'}>
+                              {recommendation} ({conf})
+                            </Badge>
+                          </span>
+                          {opt.riskFlag === true && (
+                            <span title={riskReason(opt)}>
+                              <Badge variant="yellow">⚠ risk</Badge>
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-3 py-2 text-zinc-400">{(iv * 100).toFixed(2)}%</td>
                     </tr>

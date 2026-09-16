@@ -1,0 +1,6 @@
+# Development tooling. Install alongside requirements.txt:
+#     pip install -r requirements.txt -r requirements-dev.txt
+# Then:  pytest -q        (offline; no network required)
+#        ruff check .
+pytest>=8.0.0
+ruff>=0.6.0

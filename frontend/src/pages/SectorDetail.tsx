@@ -96,7 +96,15 @@ export function SectorDetail() {
                         <div className="text-xs text-zinc-500">{getTickerFullName(s.ticker)}</div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-zinc-300">${Number(s.currentPrice ?? 0).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-zinc-300">
+                      {Number(s.currentPrice ?? 0) > 0 ? (
+                        `$${Number(s.currentPrice).toFixed(2)}`
+                      ) : (
+                        <span className="text-zinc-600" title="Live price unavailable">
+                          —
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

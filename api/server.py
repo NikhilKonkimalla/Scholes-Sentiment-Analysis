@@ -9,3 +9,6 @@ if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
 from api_server import app
+
+# Re-exported for the serverless runtime to discover.
+__all__ = ["app"]

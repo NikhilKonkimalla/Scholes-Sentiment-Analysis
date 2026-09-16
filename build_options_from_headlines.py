@@ -153,7 +153,9 @@ def main() -> int:
     from market_data import get_spot, get_options_chain
     from scoring import compute_scores
 
-    OUTPUT_COLS = ["ticker", "expiration", "contractSymbol", "strike", "price", "bid", "midPrice", "score", "impliedVolatility"]
+    # Kept in step with pipeline_multi_ticker.OUTPUT_COLS: the risk/liquidity signal
+    # travels with the score, so a high-confidence badge can always be qualified.
+    from pipeline_multi_ticker import OUTPUT_COLS, _cell
 
     all_rows = []
     for ticker in tickers:
@@ -178,16 +180,24 @@ def main() -> int:
                 exp = row.get("expiration")
                 if hasattr(exp, "isoformat"):
                     exp = exp.isoformat()
+                risk = row.get("risk_flag")
                 all_rows.append({
                     "ticker": ticker,
                     "expiration": str(exp) if exp is not None else "",
                     "contractSymbol": str(row.get("contractSymbol", "")),
-                    "strike": row.get("strike", ""),
-                    "price": row.get("lastPrice", ""),
-                    "bid": row.get("bid", ""),
-                    "midPrice": row.get("mid_price", ""),
-                    "score": row.get("opportunity_score", ""),
-                    "impliedVolatility": row.get("impliedVolatility", ""),
+                    "strike": _cell(row.get("strike")),
+                    "price": _cell(row.get("lastPrice")),
+                    "bid": _cell(row.get("bid")),
+                    "ask": _cell(row.get("ask")),
+                    "midPrice": _cell(row.get("mid_price")),
+                    "score": _cell(row.get("opportunity_score")),
+                    "impliedVolatility": _cell(row.get("impliedVolatility")),
+                    "volume": _cell(row.get("volume")),
+                    "openInterest": _cell(row.get("openInterest")),
+                    "theoPrice": _cell(row.get("theo_price")),
+                    "liquidityScore": _cell(row.get("liquidity_score")),
+                    "spreadPenalty": _cell(row.get("spread_penalty")),
+                    "riskFlag": bool(risk) if risk is not None else "",
                 })
             logger.info("%s: %d options", ticker, len(top))
         except Exception as e:

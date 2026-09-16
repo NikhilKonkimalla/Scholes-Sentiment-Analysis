@@ -7,8 +7,11 @@ dependencies = [
     "flask>=3.0.0",
     "flask-cors>=4.0.0",
     "pandas>=2.0.0",
+    "numpy>=1.24.0",
     "yfinance>=0.2.36",
 ]
 
-[project.scripts]
-app = "api_server:app"
+# Note: there is intentionally no [project.scripts] entry. A console script must
+# point at a callable; "api_server:app" is a Flask instance, so the generated
+# command could never run. Start the server with `python api_server.py`, or serve
+# it with a WSGI server, e.g. `gunicorn api_server:app`.

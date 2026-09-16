@@ -1,7 +1,7 @@
 """
 Market data module: spot price, historical OHLC, and options chain via yfinance.
 """
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 import logging
 from typing import Optional

@@ -1,11 +1,14 @@
+# Core dependencies: everything needed to run the pipelines and the API server.
+# Deliberately excludes torch/transformers (~2.5 GB), which are optional — without
+# them sentiment scoring falls back to VADER automatically. For FinBERT, also run:
+#     pip install -r requirements-ml.txt
 yfinance>=0.2.36
 pandas>=2.0.0
 numpy>=1.24.0
 scipy>=1.11.0
 eventregistry>=9.0.0
-transformers>=4.30.0
-torch>=2.0.0
 nltk>=3.8.0
+feedparser>=6.0.0
 python-dateutil>=2.8.0
 pytz>=2023.3
 requests>=2.31.0

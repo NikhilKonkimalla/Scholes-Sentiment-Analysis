@@ -3,18 +3,19 @@ Update scores in output_multi_ticker.csv using the new scoring formula (neutral 
 Reads the existing CSV, recomputes opportunity_score, writes back.
 
 Usage:
-  python update_scores.py
-  python update_scores.py --input output_multi_ticker.csv --output output_multi_ticker.csv
+  python update_scores.py                                  # writes <input>_rescored.csv
+  python update_scores.py --in-place                       # overwrites the input
+  python update_scores.py --input data.csv --output out.csv
 """
 import argparse
-import csv
 import logging
-from datetime import datetime, timezone
+import os
 import re
+from datetime import datetime, timezone
 
 import pandas as pd
 
-from market_data import get_spot, get_options_chain
+from market_data import get_spot
 from scoring import compute_scores
 
 logging.basicConfig(
@@ -28,10 +29,22 @@ logger = logging.getLogger(__name__)
 def main() -> int:
     parser = argparse.ArgumentParser(description="Recompute scores in output_multi_ticker.csv")
     parser.add_argument("--input", default="output_multi_ticker.csv", help="Input CSV path")
-    parser.add_argument("--output", default="", help="Output CSV path (default: overwrite input)")
+    parser.add_argument("--output", default="",
+                        help="Output CSV path (default: <input>_rescored.csv)")
+    parser.add_argument("--in-place", action="store_true",
+                        help="Overwrite the input file instead of writing a new one")
     parser.add_argument("--r", type=float, default=0.045, help="Risk-free rate")
     args = parser.parse_args()
-    out_path = args.output or args.input
+
+    # Default to a new file: silently overwriting the input destroys the only copy
+    # of the scores if the rescore goes wrong.
+    if args.output:
+        out_path = args.output
+    elif args.in_place:
+        out_path = args.input
+    else:
+        root, ext = os.path.splitext(args.input)
+        out_path = f"{root}_rescored{ext or '.csv'}"
 
     df = pd.read_csv(args.input)
     if df.empty:
@@ -49,6 +62,7 @@ def main() -> int:
 
     # Parse expiration -> time_to_expiry_years
     now = datetime.now(timezone.utc)
+
     def parse_exp(exp_str):
         try:
             s = str(exp_str).replace("Z", "+00:00")
@@ -63,14 +77,21 @@ def main() -> int:
 
     df["time_to_expiry_years"] = df["expiration"].apply(parse_exp)
 
-    # Estimate ask from bid/mid, use 0 for volume/OI
+    # Estimate ask from bid/mid. Volume and open interest are NOT present in this CSV,
+    # so they are left as NaN rather than invented: inventing values (e.g. 1) silently
+    # produces a bogus liquidity_score and a risk_flag that is True for every row.
+    # Only `score` is written back, so those derived columns are not used downstream.
     mid = pd.to_numeric(df["midPrice"], errors="coerce").fillna(0)
     bid = pd.to_numeric(df["bid"], errors="coerce").fillna(0)
     df["ask"] = mid + (mid - bid).clip(lower=0.01)
-    df["volume"] = 1
-    df["openInterest"] = 1
+    df["volume"] = float("nan")
+    df["openInterest"] = float("nan")
     df["mid_price"] = mid
     df["lastPrice"] = df.get("price", mid)
+    logger.warning(
+        "volume/openInterest are absent from %s; liquidity_score and risk_flag are "
+        "not meaningful for rescored rows (only `score` is written back)", args.input
+    )
 
     # Group by ticker, fetch spot, run scoring
     tickers = df["ticker"].unique().tolist()
@@ -93,8 +114,7 @@ def main() -> int:
             continue
 
         # Build options-like df for scoring
-        opts = sub.rename(columns={"impliedVolatility": "impliedVolatility"}).copy()
-        opts = opts[["ticker", "expiration", "option_type", "contractSymbol", "strike",
+        opts = sub[["ticker", "expiration", "option_type", "contractSymbol", "strike",
                     "lastPrice", "bid", "ask", "volume", "openInterest", "impliedVolatility",
                     "mid_price", "time_to_expiry_years"]].copy()
         opts["strike"] = pd.to_numeric(opts["strike"], errors="coerce")

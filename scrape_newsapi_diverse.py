@@ -154,35 +154,15 @@ YAHOO_TICKERS = [
 
 
 def _fetch_yahoo(ticker: str, n: int = 50) -> list[dict]:
-    """Fetch headlines from Yahoo Finance for a ticker."""
+    """
+    Fetch headlines from Yahoo Finance for a ticker.
+
+    Delegates to news_sentiment.fetch_headlines_yahoo so there is a single parser
+    for Yahoo's news schema (which nests the real fields under "content").
+    """
     try:
-        import yfinance as yf
-        t = yf.Ticker(ticker)
-        raw = t.get_news(count=min(n, 50), tab="news")
-        if not raw:
-            return []
-        out = []
-        for a in raw:
-            if not isinstance(a, dict):
-                continue
-            title = a.get("title") or a.get("headline") or ""
-            url = a.get("link") or a.get("url") or ""
-            src = a.get("provider") or a.get("source")
-            if isinstance(src, dict):
-                src = src.get("name") or src.get("displayName") or ""
-            src = src or "Yahoo Finance"
-            pub = a.get("providerPublishTime") or a.get("publishTime")
-            if pub is not None and hasattr(pub, "isoformat"):
-                published_at = pub.isoformat()
-            elif isinstance(pub, (int, float)):
-                try:
-                    published_at = datetime.fromtimestamp(int(pub), tz=timezone.utc).isoformat()
-                except (OSError, ValueError):
-                    published_at = str(pub)
-            else:
-                published_at = str(pub) if pub else ""
-            out.append({"title": title, "source": src, "publishedAt": published_at, "url": url})
-        return out[:n]
+        from news_sentiment import fetch_headlines_yahoo
+        return fetch_headlines_yahoo(ticker, n=n)
     except Exception as e:
         print(f"  Yahoo error for {ticker}: {e}", file=sys.stderr)
         return []
@@ -245,7 +225,7 @@ def main() -> int:
 
     try:
         from newsapi_client import SECTOR_QUERIES_400, fetch_headlines
-    except ImportError as e:
+    except ImportError:
         print("Error: eventregistry not installed.", file=sys.stderr)
         print("Run: pip install eventregistry", file=sys.stderr)
         print("Or use --yahoo for Yahoo Finance.", file=sys.stderr)

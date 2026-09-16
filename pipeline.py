@@ -8,7 +8,6 @@ import os
 import sys
 
 import numpy as np
-import pandas as pd
 
 from market_data import get_spot, get_options_chain
 from news_sentiment import fetch_headlines, score_headlines
@@ -115,7 +114,11 @@ def main() -> int:
     # Blend in RSS/social sentiment from rss_sentiment.db (optional)
     sentiment_mean = news_sentiment
     if not args.no_rss and args.rss_weight > 0:
-        rss_sent = get_ticker_sentiment(ticker, hours=args.rss_hours) or get_rolling_sentiment(args.rss_hours)
+        # `or` would discard a genuine neutral 0.0 and silently substitute the
+        # market-wide figure; these helpers return None to mean "no data".
+        rss_sent = get_ticker_sentiment(ticker, hours=args.rss_hours)
+        if rss_sent is None:
+            rss_sent = get_rolling_sentiment(args.rss_hours)
         if rss_sent is not None:
             w = max(0.0, min(1.0, args.rss_weight))
             sentiment_mean = (1 - w) * news_sentiment + w * rss_sent

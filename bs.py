@@ -4,7 +4,6 @@ Black-Scholes option pricing.
 import math
 from typing import Literal
 
-import numpy as np
 from scipy.stats import norm
 
 OptionType = Literal["call", "put"]
