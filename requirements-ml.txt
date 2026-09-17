@@ -1,0 +1,18 @@
+# Optional: FinBERT sentiment (ProsusAI/finbert).
+#
+# Without these installed, score_headlines() logs a warning and falls back to VADER,
+# so every pipeline still runs. The API server never imports them. Install with:
+#     pip install -r requirements.txt -r requirements-ml.txt
+#
+# Disk cost (measured on macOS arm64 / Python 3.14):
+#   ~1.2 GB  for the virtualenv with torch + transformers
+#   ~1.0 GB  in ~/.cache/huggingface once the model weights are fetched
+# That will exceed the build-size limit on most free hosting tiers.
+#
+# Verified working: torch 2.14.0 + transformers 5.17.0 (cp314, macOS arm64).
+# The <6 bound is deliberate: transformers 5 kept the pipeline contract that
+# _score_finbert depends on (results as {"label", "score"} dicts), but a future
+# major release could change it, and that failure would be silent — the code would
+# just fall back to VADER.
+transformers>=4.30.0,<6
+torch>=2.0.0

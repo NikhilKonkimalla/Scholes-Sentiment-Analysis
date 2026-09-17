@@ -8,23 +8,24 @@ Run: python rss_sentiment.py
 
 import re
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from urllib.request import urlopen, Request
-import feedparser
 
 # -----------------------------------------------------------------------------
 # CONFIGURATION: RSS feed URLs
 # -----------------------------------------------------------------------------
-# Reddit subreddit RSS (append .rss to subreddit URL)
-# StockTwits and financial news RSS (public feeds, no auth)
+# Public feeds, no auth required.
 DEFAULT_FEEDS = [
+    # Reddit rate-limits aggressively (HTTP 429). Failures are logged and skipped.
     "https://www.reddit.com/r/stocks/.rss",
     "https://www.reddit.com/r/wallstreetbets/.rss",
     "https://www.reddit.com/r/investing/.rss",
-    "https://stocktwits.com/symbol/SPY.rss",  # example symbol feed
+    # Financial news feeds (checked reachable).
     "https://feeds.content.dowjones.io/public/rss/mw_topstories",
-    "https://feeds.bloomberg.com/markets/news.rss",
+    "https://www.cnbc.com/id/100003114/device/rss/rss.html",
+    "https://seekingalpha.com/market_currents.xml",
+    "https://finance.yahoo.com/news/rssindex",
 ]
 
 # User-Agent for polite RSS fetching (some servers block default Python)
@@ -44,7 +45,7 @@ POSITIVE_WORDS = {
 }
 NEGATIVE_WORDS = {
     "bearish", "dump", "dumps", "dumping", "crash", "crashes", "crashing",
-    "sell", "short", "shorts", "collapse", "collapse", "plunge", "plunges",
+    "sell", "short", "shorts", "collapse", "plunge", "plunges",
     "drop", "drops", "fall", "falls", "loss", "losses", "bear", "bears",
     "red", "put", "puts", "overvalued", "recession", "fear", "panic",
     "miss", "misses", "missing", "downgrade", "downgraded", "weak", "weakness",
@@ -54,6 +55,19 @@ NEGATIVE_WORDS = {
 # DATABASE
 # -----------------------------------------------------------------------------
 DB_PATH = "rss_sentiment.db"
+
+# Timestamps are stored as naive UTC strings in this format.
+TS_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+
+def _utc_now_str() -> str:
+    """Current UTC time in the DB's timestamp format."""
+    return datetime.now(timezone.utc).strftime(TS_FORMAT)
+
+
+def _utc_since_str(hours: float) -> str:
+    """UTC timestamp `hours` in the past, in the DB's timestamp format."""
+    return (datetime.now(timezone.utc) - timedelta(hours=hours)).strftime(TS_FORMAT)
 
 
 def get_connection():
@@ -85,7 +99,16 @@ def init_db(conn):
 def fetch_rss(url, timeout=15):
     """
     Fetch and parse an RSS/Atom feed. Returns feedparser dict or None on failure.
+
+    feedparser is imported lazily so that the rest of this module (and the
+    pipelines that import it for sentiment lookups) still work when feedparser
+    is not installed.
     """
+    try:
+        import feedparser
+    except ImportError:
+        print("  [WARN] feedparser is not installed; skipping RSS fetch (pip install feedparser)")
+        return None
     try:
         req = Request(url, headers={"User-Agent": USER_AGENT})
         with urlopen(req, timeout=timeout) as resp:
@@ -110,8 +133,7 @@ def extract_text(entry):
     text = " ".join(parts)
     # Strip HTML tags crudely for sentiment (keep words)
     text = re.sub(r"<[^>]+>", " ", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def score_sentiment(text):
@@ -145,7 +167,7 @@ def extract_tickers(text):
 
 def store_item(conn, source, title, sentiment, tickers):
     """Insert one processed item into the database."""
-    ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    ts = _utc_now_str()
     tickers_str = ",".join(tickers) if tickers else ""
     conn.execute(
         "INSERT INTO items (ts, source, title, sentiment, tickers) VALUES (?, ?, ?, ?, ?)",
@@ -182,7 +204,7 @@ def rolling_sentiment(conn, hours):
     Average sentiment over the last `hours` (from items with any content).
     Returns a single float or None if no data.
     """
-    since = (datetime.utcnow() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+    since = _utc_since_str(hours)
     row = conn.execute(
         "SELECT AVG(sentiment) FROM items WHERE ts >= ?", (since,)
     ).fetchone()
@@ -196,8 +218,12 @@ def per_ticker_sentiment(conn, hours, limit=10):
     For items in the last `hours`, expand tickers and compute average sentiment
     per ticker. Returns two lists: (bullish_list, bearish_list), each of
     (ticker, avg_sentiment), sorted by sentiment desc/asc, top `limit`.
+
+    The two lists are disjoint: only genuinely positive tickers can be bullish and
+    only genuinely negative ones bearish. A plain head/tail slice would list the
+    same ticker as both when fewer than 2*limit tickers exist.
     """
-    since = (datetime.utcnow() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+    since = _utc_since_str(hours)
     rows = conn.execute(
         "SELECT sentiment, tickers FROM items WHERE ts >= ? AND tickers != ''",
         (since,),
@@ -213,8 +239,8 @@ def per_ticker_sentiment(conn, hours, limit=10):
     # averages
     avg = [(t, sum(s) / len(s)) for t, s in by_ticker.items()]
     avg.sort(key=lambda x: x[1], reverse=True)
-    bullish = avg[:limit]
-    bearish = avg[-limit:][::-1]
+    bullish = [x for x in avg if x[1] > 0][:limit]
+    bearish = [x for x in avg if x[1] < 0][-limit:][::-1]
     return bullish, bearish
 
 
@@ -229,7 +255,7 @@ def get_ticker_sentiment(ticker: str, hours: int = 24) -> Optional[float]:
     try:
         conn = get_connection()
         try:
-            since = (datetime.utcnow() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+            since = _utc_since_str(hours)
             rows = conn.execute(
                 "SELECT sentiment, tickers FROM items WHERE ts >= ? AND tickers != ''",
                 (since,),
@@ -288,9 +314,13 @@ def print_summary():
         print("\n  Top 5 bullish (24h):")
         for ticker, sent in bullish:
             print(f"    ${ticker}: {sent:+.4f}")
+        if not bullish:
+            print("    (none)")
         print("  Top 5 bearish (24h):")
         for ticker, sent in bearish:
             print(f"    ${ticker}: {sent:+.4f}")
+        if not bearish:
+            print("    (none)")
         print("=" * 60 + "\n")
     finally:
         conn.close()

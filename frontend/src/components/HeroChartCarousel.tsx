@@ -55,13 +55,24 @@ export function HeroChartCarousel() {
     };
   }, []);
 
+  const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const goTo = useCallback((index: number) => {
     const next = (index + CAROUSEL_TICKERS.length) % CAROUSEL_TICKERS.length;
     setIsTransitioning(true);
     setCurrentIndex(next);
-    const t = setTimeout(() => setIsTransitioning(false), 350);
-    return () => clearTimeout(t);
+    // This previously returned a cleanup function that nothing ever called, so the
+    // timer leaked and could fire after unmount. Track it in a ref and clear it.
+    if (transitionTimeoutRef.current) clearTimeout(transitionTimeoutRef.current);
+    transitionTimeoutRef.current = setTimeout(() => setIsTransitioning(false), 350);
   }, []);
+
+  useEffect(
+    () => () => {
+      if (transitionTimeoutRef.current) clearTimeout(transitionTimeoutRef.current);
+    },
+    []
+  );
 
   const goNext = useCallback(() => goTo(currentIndex + 1), [currentIndex, goTo]);
   const goPrev = useCallback(() => goTo(currentIndex - 1), [currentIndex, goTo]);

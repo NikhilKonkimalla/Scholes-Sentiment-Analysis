@@ -1,12 +1,21 @@
 """
 Multi-ticker pipeline: run options scoring across many tickers, output combined CSV.
 Uses headlines from CSV, computes sentiment, fetches options for each ticker.
-Output: ticker, expiration, contractSymbol, strike, price, bid, midPrice, score, impliedVolatility
+
+The output carries the risk signal alongside the score: a contract can score highly on
+mispricing while being untradeable (no volume, wide spread), and dropping risk_flag from
+the output left the API unable to qualify a high-confidence badge.
+
+Also writes a data_meta.json sidecar next to the output so the frontend can show an
+accurate "data as of" date.
 """
 import argparse
 import csv
+import json
 import logging
+import os
 import sys
+from datetime import datetime, timezone
 
 import numpy as np
 
@@ -29,7 +38,53 @@ DEFAULT_TICKERS = [
     "HD", "DIS", "NFLX", "ADBE", "CRM", "INTC", "AMD", "GS", "BA", "CAT",
 ]
 
-OUTPUT_COLS = ["ticker", "expiration", "contractSymbol", "strike", "price", "bid", "midPrice", "score", "impliedVolatility"]
+OUTPUT_COLS = [
+    "ticker", "expiration", "contractSymbol", "strike",
+    "price", "bid", "ask", "midPrice",
+    "score", "impliedVolatility",
+    # Risk / liquidity signal. riskFlag is the decision; the rest are the inputs it
+    # is derived from, so the UI can explain why a contract is flagged.
+    "volume", "openInterest", "theoPrice", "liquidityScore", "spreadPenalty", "riskFlag",
+]
+
+
+def _cell(value):
+    """
+    CSV cell for a possibly-NaN numeric.
+
+    Empty rather than the string "nan": the API parses these back to floats and
+    jsonify would emit a bare NaN literal, which is not valid JSON.
+    """
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return "" if value is None else value
+    return "" if f != f else f
+
+
+def write_metadata(output_path: str, rows: list[dict]) -> None:
+    """
+    Write data_meta.json beside the output CSV.
+
+    The frontend reads this for its "data as of" label. A sidecar rather than the
+    CSV's mtime because mtimes are unreliable in deployment: a fresh git checkout
+    stamps every file with the deploy time, which would report stale data as new.
+    """
+    meta_path = os.path.join(os.path.dirname(os.path.abspath(output_path)), "data_meta.json")
+    meta = {
+        "generatedAt": datetime.now(timezone.utc).isoformat(),
+        "source": os.path.basename(output_path),
+        "rows": len(rows),
+        "tickerCount": len({r["ticker"] for r in rows}),
+        "riskFlagged": sum(1 for r in rows if r.get("riskFlag") is True),
+    }
+    try:
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, indent=2)
+            f.write("\n")
+        logger.info("Wrote %s", meta_path)
+    except OSError as e:
+        logger.warning("Could not write %s: %s", meta_path, e)
 
 
 def main() -> int:
@@ -100,7 +155,10 @@ def main() -> int:
                     sentiment_mean = 0.7 * ticker_news + 0.3 * news_sentiment
                     logger.info("%s: per-ticker news sentiment %.4f (blended with global)", ticker, sentiment_mean)
             if not args.no_rss and args.rss_weight > 0:
-                rss_sent = get_ticker_sentiment(ticker, hours=args.rss_hours) or get_rolling_sentiment(args.rss_hours)
+                # `or` would discard a genuine neutral 0.0; None means "no data".
+                rss_sent = get_ticker_sentiment(ticker, hours=args.rss_hours)
+                if rss_sent is None:
+                    rss_sent = get_rolling_sentiment(args.rss_hours)
                 if rss_sent is not None:
                     w = max(0.0, min(1.0, args.rss_weight))
                     sentiment_mean = (1 - w) * sentiment_mean + w * rss_sent
@@ -119,16 +177,24 @@ def main() -> int:
                 exp = row.get("expiration")
                 if hasattr(exp, "isoformat"):
                     exp = exp.isoformat()
+                risk = row.get("risk_flag")
                 all_rows.append({
                     "ticker": ticker,
                     "expiration": str(exp) if exp is not None else "",
                     "contractSymbol": str(row.get("contractSymbol", "")),
-                    "strike": row.get("strike", ""),
-                    "price": row.get("lastPrice", ""),
-                    "bid": row.get("bid", ""),
-                    "midPrice": row.get("mid_price", ""),
-                    "score": row.get("opportunity_score", ""),
-                    "impliedVolatility": row.get("impliedVolatility", ""),
+                    "strike": _cell(row.get("strike")),
+                    "price": _cell(row.get("lastPrice")),
+                    "bid": _cell(row.get("bid")),
+                    "ask": _cell(row.get("ask")),
+                    "midPrice": _cell(row.get("mid_price")),
+                    "score": _cell(row.get("opportunity_score")),
+                    "impliedVolatility": _cell(row.get("impliedVolatility")),
+                    "volume": _cell(row.get("volume")),
+                    "openInterest": _cell(row.get("openInterest")),
+                    "theoPrice": _cell(row.get("theo_price")),
+                    "liquidityScore": _cell(row.get("liquidity_score")),
+                    "spreadPenalty": _cell(row.get("spread_penalty")),
+                    "riskFlag": bool(risk) if risk is not None else "",
                 })
             logger.info("%s: %d options", ticker, len(top))
         except Exception as e:
@@ -140,7 +206,13 @@ def main() -> int:
         w.writeheader()
         w.writerows(all_rows)
 
-    logger.info("Wrote %s (%d rows, %d tickers)", args.output, len(all_rows), len(set(r["ticker"] for r in all_rows)))
+    flagged = sum(1 for r in all_rows if r.get("riskFlag") is True)
+    logger.info("Wrote %s (%d rows, %d tickers, %d risk-flagged)",
+                args.output, len(all_rows), len(set(r["ticker"] for r in all_rows)), flagged)
+
+    if all_rows:
+        write_metadata(args.output, all_rows)
+
     return 0
 
 

@@ -16,7 +16,7 @@ export function Card({ title, children, className = '' }: CardProps) {
           <h2 className="text-lg font-semibold text-zinc-100">{title}</h2>
         </div>
       )}
-      <div className={title ? 'p-4' : 'p-4'}>{children}</div>
+      <div className="p-4">{children}</div>
     </div>
   );
 }

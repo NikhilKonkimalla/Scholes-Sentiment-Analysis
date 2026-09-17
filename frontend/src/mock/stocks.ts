@@ -34,6 +34,19 @@ export interface StockOption {
   optionPrice?: number;
   /** 0-100, derived from score. Kept for backward compat. */
   confidence?: number;
+
+  // Risk / liquidity signal. All nullable: null means the backing CSV predates these
+  // columns, which must render as "unknown" — never as "safe".
+  ask?: number | null;
+  /** True when the contract is wide-spread, illiquid, or has no usable theoretical price. */
+  riskFlag?: boolean | null;
+  volume?: number | null;
+  openInterest?: number | null;
+  /** Black-Scholes fair value, for comparison against midPrice. */
+  theoPrice?: number | null;
+  liquidityScore?: number | null;
+  /** Bid/ask spread as a multiple of mid price; higher is worse. */
+  spreadPenalty?: number | null;
 }
 
 // Stocks per sector (sectorId -> stocks)
@@ -76,8 +89,18 @@ export const MOCK_STOCKS_BY_SECTOR: Record<string, Stock[]> = {
   ],
 };
 
-/** Up to 20 extra tickers (from API, not in mock) mapped to existing sectors. Order = priority for capping. */
-export const EXTRA_TICKERS_CAP = 20;
+/** Extra tickers (from API, not in mock) mapped to existing sectors. Order = priority for capping. */
+export const EXTRA_TICKERS_ORDER: string[] = [
+  'AMD', 'INTC', 'QCOM', 'ORCL', 'ADBE', 'ABBV', 'GILD', 'AMGN', 'GS', 'MS', 'AXP',
+  'NKE', 'SBUX', 'MCD', 'GE', 'HON', 'UPS', 'FCX', 'AA', 'DUK', 'COP', 'SLB',
+];
+
+/**
+ * Cap on extra tickers shown. Derived from the list above so the two cannot drift:
+ * a hardcoded 20 against 22 entries silently dropped COP and SLB from the UI.
+ */
+export const EXTRA_TICKERS_CAP = EXTRA_TICKERS_ORDER.length;
+
 export const EXTRA_TICKER_SECTORS: Record<string, string> = {
   AMD: 'technology', INTC: 'technology', QCOM: 'technology', ORCL: 'technology', ADBE: 'technology',
   ABBV: 'health', GILD: 'health', AMGN: 'health',
@@ -88,10 +111,6 @@ export const EXTRA_TICKER_SECTORS: Record<string, string> = {
   DUK: 'utilities',
   COP: 'energy', SLB: 'energy',
 };
-export const EXTRA_TICKERS_ORDER: string[] = [
-  'AMD', 'INTC', 'QCOM', 'ORCL', 'ADBE', 'ABBV', 'GILD', 'AMGN', 'GS', 'MS', 'AXP',
-  'NKE', 'SBUX', 'MCD', 'GE', 'HON', 'UPS', 'FCX', 'AA', 'DUK', 'COP', 'SLB',
-];
 
 /** Full company names for tickers (used when API returns ticker as name). */
 export const TICKER_FULL_NAMES: Record<string, string> = {
@@ -141,47 +160,10 @@ export function getStockByTicker(ticker: string): Stock | undefined {
   return undefined;
 }
 
-// Generate 30 days of mock prices for a ticker
-export function generateMockPrices(_ticker: string, basePrice: number): PricePoint[] {
-  const points: PricePoint[] = [];
-  const now = new Date();
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    const variation = (Math.random() - 0.5) * basePrice * 0.02;
-    const prev = points.length ? points[points.length - 1].price : basePrice;
-    points.push({
-      date: d.toISOString().slice(0, 10),
-      price: Math.round((prev + variation) * 100) / 100,
-    });
-  }
-  return points;
-}
-
-// Generate 30 days of mock OHLC for candlestick charts
-export function generateMockOHLC(_ticker: string, basePrice: number): OHLCPoint[] {
-  const points: OHLCPoint[] = [];
-  const now = new Date();
-  let open = basePrice;
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    const volatility = basePrice * 0.015;
-    const change = (Math.random() - 0.5) * 2 * volatility;
-    const close = Math.round((open + change) * 100) / 100;
-    const high = Math.round((Math.max(open, close) + Math.random() * volatility * 0.5) * 100) / 100;
-    const low = Math.round((Math.min(open, close) - Math.random() * volatility * 0.5) * 100) / 100;
-    points.push({
-      date: d.toISOString().slice(0, 10),
-      open,
-      high: Math.max(high, open, close),
-      low: Math.min(low, open, close),
-      close,
-    });
-    open = close;
-  }
-  return points;
-}
+// NOTE: generateMockPrices() and generateMockOHLC() used to live here. They produced a
+// `Math.random()` walk that the chart rendered with nothing marking it as synthetic, so
+// a visitor with the backend down saw a plausible-looking price history that was pure
+// noise. Price data now has no fallback: unavailable renders an empty state instead.
 
 // Mock options per stock
 function mockOpt(t: string, type: 'call' | 'put', strike: number, price: number, bid: number, midPrice: number, score: number, iv: number, exp = '2026-03-21T21:00:00+00:00'): StockOption {

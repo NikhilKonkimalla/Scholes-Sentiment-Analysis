@@ -1,0 +1,128 @@
+name: Refresh data and deploy site
+
+# Rebuilds the static site on GitHub Pages. Scheduled runs fetch fresh options data from
+# Yahoo first; push and manual runs can redeploy the committed snapshot instead.
+#
+# One-time setup (repo admin): Settings -> Pages -> Build and deployment -> Source:
+# "GitHub Actions". Scheduled runs only fire from the default branch.
+
+on:
+  schedule:
+    # Five refreshes per US trading day. Cron is UTC; these times fall inside market
+    # hours under both EDT (13:30-20:00 UTC) and EST (14:30-21:00 UTC). GitHub can start
+    # scheduled runs several minutes late.
+    - cron: "45 14 * * 1-5"
+    - cron: "0 16 * * 1-5"
+    - cron: "15 17 * * 1-5"
+    - cron: "30 18 * * 1-5"
+    - cron: "45 19 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      refresh:
+        description: "Fetch fresh options data (off = redeploy the committed snapshot)"
+        type: boolean
+        default: true
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never run two refreshes at once; let an in-progress deploy finish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      REFRESH: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.refresh) }}
+      # Pages serves project sites under /<repo>/. Set a repository variable SITE_BASE=/
+      # when using a custom domain or a <user>.github.io repository.
+      SITE_BASE: ${{ vars.SITE_BASE || format('/{0}/', github.event.repository.name) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install -r requirements.txt
+          # CPU-only torch: the default Linux wheel bundles CUDA (~2.5 GB) a runner can't use.
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install "transformers>=4.30.0,<6"
+
+      - name: Cache FinBERT weights
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-prosusai-finbert-main
+
+      - name: Refresh options data
+        if: env.REFRESH == 'true'
+        run: |
+          mkdir -p refresh
+          tail -n +2 data.csv | cut -d, -f1 | sort -u | paste -sd, - > refresh/tickers.txt
+          old=$(tr ',' '\n' < refresh/tickers.txt | grep -c .)
+
+          if timeout 45m python pipeline_multi_ticker.py \
+               --headlines_csv newsapi_headlines_500.csv \
+               --tickers "$(cat refresh/tickers.txt)" \
+               --expirations 4 --top_per_ticker 25 \
+               --output refresh/data.csv --no-rss; then
+            new=$(tail -n +2 refresh/data.csv | cut -d, -f1 | sort -u | grep -c . || true)
+            echo "Refreshed $new of $old tickers"
+            # Yahoo rate limits datacenter IPs. A run that loses many tickers would publish
+            # a thinner site than the committed snapshot, so require most of them.
+            if [ "$new" -ge $(( old * 8 / 10 )) ]; then
+              mv refresh/data.csv data.csv
+              mv refresh/data_meta.json data_meta.json
+              echo "Using fresh data."
+            else
+              echo "::warning::Only $new of $old tickers refreshed (likely rate limiting); keeping the committed snapshot."
+            fi
+          else
+            echo "::warning::Refresh failed or timed out; keeping the committed snapshot."
+          fi
+
+      - name: Export static JSON
+        run: python export_static_data.py
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build site
+        working-directory: frontend
+        env:
+          VITE_DATA_MODE: static
+        run: |
+          npm ci
+          npm run build -- --base="$SITE_BASE"
+          # Pages has no SPA rewrites; serving index.html as the 404 page lets deep links
+          # like /stocks/AAPL load the app, which then routes client-side.
+          cp dist/index.html dist/404.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

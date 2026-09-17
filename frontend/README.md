@@ -48,13 +48,22 @@ npm run preview
 
 ## API (mock → real)
 
-The app is wired for these endpoints. Replace mock implementations in `src/services/api.ts` with real `fetch()` when the backend is ready:
+Implemented in `src/services/api.ts`. Each of these falls back to mock data when the
+backend is unreachable:
 
-- `GET /api/sectors`
-- `GET /api/sectors/:sectorId/stocks`
-- `GET /api/stocks/:ticker/prices?range=1m`
-- `GET /api/stocks/:ticker/ai-summary`
-- `GET /api/stocks/:ticker/options`
+| Endpoint | Status |
+|----------|--------|
+| `GET /api/stocks/:ticker/options` | **Real** — from the backend options CSV |
+| `GET /api/stocks/:ticker/quote` | **Real** — live Yahoo Finance |
+| `GET /api/stocks/:ticker/history?period=1mo` | **Real** — live Yahoo Finance |
+| `GET /api/stocks/:ticker/ai-summary` | **Real** — recent headlines scored by FinBERT/VADER |
+| `GET /api/sectors` | Mock — sectors are a static list |
+| `GET /api/sectors/:sectorId/stocks` | Mock — filtered by tickers the backend has data for |
+
+Anything served from mock data is tagged and labelled in the UI (see the amber notices
+on the options table and the News Sentiment panel) so placeholder content is never
+mistaken for real analysis. The Home page's "Active Options" table is still entirely
+mock and is not yet wired to the backend.
 
 ## Tech
 
