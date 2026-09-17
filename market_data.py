@@ -1,5 +1,10 @@
 """
 Market data module: spot price, historical OHLC, and options chain via yfinance.
+
+yfinance can end a history frame with a row for the current session whose prices are all
+NaN (seen outside market hours). Taking "the last row" naively then yields NaN, which
+silently skipped every ticker in the pipeline and blanked every quote on the site, so
+all readers here drop rows with no close first.
 """
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -17,19 +22,26 @@ ET = ZoneInfo("America/New_York")
 UTC = timezone.utc
 
 
+def _valid_closes(hist: Optional[pd.DataFrame]) -> pd.Series:
+    """Close prices with NaN rows removed; empty Series if there is no usable data."""
+    if hist is None or hist.empty or "Close" not in hist.columns:
+        return pd.Series(dtype=float)
+    return hist["Close"].dropna()
+
+
 def get_spot(ticker: str) -> float:
     """
-    Fetch last close price for the underlying using yfinance.
-    Returns last close as float; NaN on failure.
+    Fetch the most recent valid close for the underlying using yfinance.
+    Returns the close as float; NaN on failure.
     """
     try:
         t = yf.Ticker(ticker)
-        hist = t.history(period="1d")
-        if hist is None or hist.empty:
-            logger.warning("No history returned for %s", ticker)
+        # 5d rather than 1d: a 1d frame can consist of nothing but today's empty row.
+        closes = _valid_closes(t.history(period="5d"))
+        if closes.empty:
+            logger.warning("No valid close returned for %s", ticker)
             return float("nan")
-        close = hist["Close"].iloc[-1]
-        return float(close)
+        return float(closes.iloc[-1])
     except Exception as e:
         logger.exception("get_spot failed for %s: %s", ticker, e)
         return float("nan")
@@ -39,8 +51,8 @@ def get_history(ticker: str, period: str = "1mo") -> pd.DataFrame:
     """
     Fetch historical OHLCV for the ticker using yfinance.
     period: "1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y".
-    Returns DataFrame with columns: date (index), open, high, low, close, volume.
-    Empty DataFrame on failure.
+    Returns DataFrame with columns: date (index), open, high, low, close.
+    Rows with no close are dropped. Empty DataFrame on failure.
     """
     try:
         t = yf.Ticker(ticker)
@@ -53,7 +65,7 @@ def get_history(ticker: str, period: str = "1mo") -> pd.DataFrame:
         for c in ["open", "high", "low", "close"]:
             if c not in hist.columns:
                 return pd.DataFrame()
-        return hist[["open", "high", "low", "close"]].copy()
+        return hist[["open", "high", "low", "close"]].dropna(subset=["close"]).copy()
     except Exception as e:
         logger.exception("get_history failed for %s: %s", ticker, e)
         return pd.DataFrame()
@@ -61,21 +73,21 @@ def get_history(ticker: str, period: str = "1mo") -> pd.DataFrame:
 
 def get_quote(ticker: str) -> Optional[dict]:
     """
-    Fetch current quote (price and day change) for the ticker using yfinance.
-    Returns dict with currentPrice, dayChangePercent, or None on failure.
+    Fetch the latest price and day change for the ticker using yfinance.
+    Uses the last two valid closes. Returns dict with currentPrice, dayChangePercent,
+    or None when no valid price is available.
     """
     try:
         t = yf.Ticker(ticker)
-        hist = t.history(period="5d")
-        if hist is None or hist.empty or len(hist) < 2:
-            close = get_spot(ticker)
-            if close != close:
-                return None
-            return {"currentPrice": float(close), "dayChangePercent": 0.0}
-        last = hist["Close"].iloc[-1]
-        prev = hist["Close"].iloc[-2]
-        pct = ((float(last) - float(prev)) / float(prev)) * 100.0 if prev and float(prev) != 0 else 0.0
-        return {"currentPrice": float(last), "dayChangePercent": round(pct, 2)}
+        closes = _valid_closes(t.history(period="5d"))
+        if closes.empty:
+            return None
+        last = float(closes.iloc[-1])
+        if len(closes) < 2:
+            return {"currentPrice": last, "dayChangePercent": 0.0}
+        prev = float(closes.iloc[-2])
+        pct = ((last - prev) / prev) * 100.0 if prev != 0 else 0.0
+        return {"currentPrice": last, "dayChangePercent": round(pct, 2)}
     except Exception as e:
         logger.exception("get_quote failed for %s: %s", ticker, e)
         return None
